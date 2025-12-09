@@ -295,4 +295,153 @@ export interface LiwanagApi {
   getAppState(): AppState;
   setOptions(options: Partial<LiwanagOptions>): void;
   logout(callback?: (err: Error | null) => void): Promise<void>;
+
+  // Photo/Video support
+  sendPhoto(photoPath: string | string[], threadID: string, caption?: string, callback?: (err: Error | null, messageInfo: any) => void): Promise<any>;
+  magpadalaNgLarawan(photoPath: string | string[], threadID: string, caption?: string, callback?: (err: Error | null, messageInfo: any) => void): Promise<any>;
+  sendVideo(videoPath: string, threadID: string, caption?: string, callback?: (err: Error | null, messageInfo: any) => void): Promise<any>;
+  magpadalaNgVideo(videoPath: string, threadID: string, caption?: string, callback?: (err: Error | null, messageInfo: any) => void): Promise<any>;
+
+  // Sticker support
+  sendSticker(stickerID: string, threadID: string, callback?: (err: Error | null, messageInfo: any) => void): Promise<any>;
+  magpadalaNgSticker(stickerID: string, threadID: string, callback?: (err: Error | null, messageInfo: any) => void): Promise<any>;
+  getStickerURL(stickerID: string, callback?: (err: Error | null, url: string) => void): Promise<string>;
+
+  // Timeline posting
+  postToTimeline(message: string, options?: TimelinePostOptions, callback?: (err: Error | null, postInfo: TimelinePost) => void): Promise<TimelinePost>;
+  magpostsaTimeline(message: string, options?: TimelinePostOptions, callback?: (err: Error | null, postInfo: TimelinePost) => void): Promise<TimelinePost>;
+  deletePost(postID: string, callback?: (err: Error | null) => void): Promise<void>;
+  editPost(postID: string, newMessage: string, callback?: (err: Error | null) => void): Promise<void>;
+
+  // Friend request management
+  sendFriendRequest(userID: string, callback?: (err: Error | null) => void): Promise<void>;
+  magpadalaNgFriendRequest(userID: string, callback?: (err: Error | null) => void): Promise<void>;
+  acceptFriendRequest(userID: string, callback?: (err: Error | null) => void): Promise<void>;
+  tanggapinAngFriendRequest(userID: string, callback?: (err: Error | null) => void): Promise<void>;
+  declineFriendRequest(userID: string, callback?: (err: Error | null) => void): Promise<void>;
+  cancelFriendRequest(userID: string, callback?: (err: Error | null) => void): Promise<void>;
+  unfriend(userID: string, callback?: (err: Error | null) => void): Promise<void>;
+  getFriendRequests(callback?: (err: Error | null, requests: FriendRequest[]) => void): Promise<FriendRequest[]>;
+  kuninAngFriendRequests(callback?: (err: Error | null, requests: FriendRequest[]) => void): Promise<FriendRequest[]>;
+  getFriendsList(callback?: (err: Error | null, friends: UserInfo[]) => void): Promise<UserInfo[]>;
+
+  // Notification handling
+  getNotifications(limit?: number, callback?: (err: Error | null, notifications: Notification[]) => void): Promise<Notification[]>;
+  kuninAngNotifications(limit?: number, callback?: (err: Error | null, notifications: Notification[]) => void): Promise<Notification[]>;
+  markNotificationAsRead(notificationID: string, callback?: (err: Error | null) => void): Promise<void>;
+  markAllNotificationsAsRead(callback?: (err: Error | null) => void): Promise<void>;
+  onNotification(callback: NotificationCallback): void;
+
+  // Webhook integration
+  registerWebhook(config: WebhookConfig): void;
+  unregisterWebhook(webhookID: string): void;
+  getWebhooks(): WebhookConfig[];
+}
+
+// Two-Factor Authentication Types
+export interface TwoFactorAuthOptions {
+  method: '2fa_code' | 'backup_code' | 'authenticator';
+  code: string;
+}
+
+export interface CheckpointData {
+  type: 'two_factor' | 'verification' | 'captcha' | 'identity';
+  challengeUrl?: string;
+  message?: string;
+}
+
+export interface CheckpointHandler {
+  onCheckpoint: (data: CheckpointData) => Promise<string | TwoFactorAuthOptions>;
+  onError?: (error: Error) => void;
+}
+
+// Timeline/Post Types
+export interface TimelinePostOptions {
+  privacy?: 'public' | 'friends' | 'only_me';
+  photos?: string[];
+  location?: string;
+  feeling?: string;
+  taggedUsers?: string[];
+  scheduledTime?: Date;
+}
+
+export interface TimelinePost {
+  postID: string;
+  authorID: string;
+  message: string;
+  timestamp: number;
+  privacy: string;
+  likes: number;
+  comments: number;
+  shares: number;
+  attachments: Attachment[];
+}
+
+// Friend Request Types
+export interface FriendRequest {
+  id: string;
+  senderID: string;
+  senderName: string;
+  senderProfileUrl: string;
+  senderAvatarUrl: string;
+  timestamp: number;
+  mutualFriends: number;
+}
+
+// Notification Types
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  timestamp: number;
+  isRead: boolean;
+  link?: string;
+  senderID?: string;
+  senderName?: string;
+  senderAvatar?: string;
+}
+
+export type NotificationType = 
+  | 'message'
+  | 'friend_request'
+  | 'comment'
+  | 'like'
+  | 'mention'
+  | 'tag'
+  | 'group'
+  | 'event'
+  | 'birthday'
+  | 'memory'
+  | 'other';
+
+export interface NotificationCallback {
+  (notification: Notification): void;
+}
+
+// Webhook Types
+export interface WebhookConfig {
+  id?: string;
+  url: string;
+  events: WebhookEventType[];
+  secret?: string;
+  headers?: Record<string, string>;
+  retryCount?: number;
+  retryDelay?: number;
+}
+
+export type WebhookEventType = 
+  | 'message'
+  | 'message_reaction'
+  | 'message_read'
+  | 'friend_request'
+  | 'notification'
+  | 'presence'
+  | 'typing'
+  | 'all';
+
+export interface WebhookPayload {
+  event: WebhookEventType;
+  timestamp: number;
+  data: any;
 }

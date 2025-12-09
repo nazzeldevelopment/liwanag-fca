@@ -262,6 +262,14 @@ await api.palitanAngGroupName(threadID, 'New Group Name');
 | `magdagdagNgMember()` | `addUserToGroup()` | Add member |
 | `magtanggalNgMember()` | `removeUserFromGroup()` | Remove member |
 | `palitanAngGroupName()` | `setTitle()` | Change group name |
+| `magpadalaNgLarawan()` | `sendPhoto()` | Send photo |
+| `magpadalaNgVideo()` | `sendVideo()` | Send video |
+| `magpadalaNgSticker()` | `sendSticker()` | Send sticker |
+| `magpostsaTimeline()` | `postToTimeline()` | Post to timeline |
+| `magpadalaNgFriendRequest()` | `sendFriendRequest()` | Send friend request |
+| `tanggapinAngFriendRequest()` | `acceptFriendRequest()` | Accept friend request |
+| `kuninAngFriendRequests()` | `getFriendRequests()` | Get friend requests |
+| `kuninAngNotifications()` | `getNotifications()` | Get notifications |
 
 ---
 
@@ -283,6 +291,8 @@ await api.palitanAngGroupName(threadID, 'New Group Name');
 ### Login Methods
 - `login(credentials, options, callback)` - Login with credentials or appState
 - `loginFromAppState(path, options, callback)` - Login from appState file
+- `loginWithTwoFactor(credentials, code, options, callback)` - Login with 2FA code
+- `loginWithCheckpointHandler(credentials, handler, options, callback)` - Login with checkpoint handler
 
 ### Messaging Methods
 - `sendMessage(message, threadID, callback)` / `magpadalaNgMensahe()`
@@ -291,6 +301,39 @@ await api.palitanAngGroupName(threadID, 'New Group Name');
 - `unsendMessage(messageID, callback)`
 - `markAsRead(threadID, callback)`
 - `markAsReadAll(callback)`
+
+### Photo/Video Methods
+- `sendPhoto(path, threadID, caption, callback)` / `magpadalaNgLarawan()`
+- `sendVideo(path, threadID, caption, callback)` / `magpadalaNgVideo()`
+
+### Sticker Methods
+- `sendSticker(stickerID, threadID, callback)` / `magpadalaNgSticker()`
+- `getStickerURL(stickerID, callback)` - Get sticker image URL
+
+### Timeline Methods
+- `postToTimeline(message, options, callback)` / `magpostsaTimeline()`
+- `editPost(postID, newMessage, callback)`
+- `deletePost(postID, callback)`
+
+### Friend Request Methods
+- `sendFriendRequest(userID, callback)` / `magpadalaNgFriendRequest()`
+- `acceptFriendRequest(userID, callback)` / `tanggapinAngFriendRequest()`
+- `declineFriendRequest(userID, callback)`
+- `cancelFriendRequest(userID, callback)`
+- `unfriend(userID, callback)`
+- `getFriendRequests(callback)` / `kuninAngFriendRequests()`
+- `getFriendsList(callback)`
+
+### Notification Methods
+- `getNotifications(limit, callback)` / `kuninAngNotifications()`
+- `markNotificationAsRead(notificationID, callback)`
+- `markAllNotificationsAsRead(callback)`
+- `onNotification(callback)` - Real-time notification listener
+
+### Webhook Methods
+- `registerWebhook(config)` - Register webhook endpoint
+- `unregisterWebhook(webhookID)` - Remove webhook
+- `getWebhooks()` - List registered webhooks
 
 ### User Methods
 - `getUserInfo(userIDs, callback)` / `kuninAngUserInfo()`

@@ -1,4 +1,10 @@
-import { login, loginFromAppState } from './core/login';
+import { 
+  login, 
+  loginFromAppState, 
+  loginWithTwoFactor, 
+  loginWithCheckpointHandler,
+  LoginOptionsWithCheckpoint
+} from './core/login';
 import { Api } from './core/api';
 import { Logger } from './utils/logger';
 import { CookieManager } from './utils/cookies';
@@ -14,6 +20,9 @@ export * from './types';
 export {
   login,
   loginFromAppState,
+  loginWithTwoFactor,
+  loginWithCheckpointHandler,
+  LoginOptionsWithCheckpoint,
   Api,
   Logger,
   CookieManager,
@@ -26,6 +35,8 @@ export {
 export default {
   login,
   loginFromAppState,
+  loginWithTwoFactor,
+  loginWithCheckpointHandler,
   Api,
   Logger,
   CookieManager,

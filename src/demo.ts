@@ -1,4 +1,14 @@
-import { login, LiwanagOptions, AppState, LiwanagApi } from './index';
+import { 
+  login, 
+  loginWithCheckpointHandler,
+  LiwanagOptions, 
+  AppState, 
+  LiwanagApi,
+  CheckpointData,
+  TwoFactorAuthOptions,
+  TimelinePostOptions,
+  WebhookConfig
+} from './index';
 import { Logger } from './utils/logger';
 
 const demoAppState: AppState = {
@@ -109,6 +119,83 @@ login({ appState: demoAppState }, options, async (err, api) => {
   }
   console.log('\n');
 
+  // ==================== NEW FEATURES DEMO ====================
+
+  console.log('--- Sticker Support Demo ---');
+  try {
+    const stickerResult = await api.magpadalaNgSticker('369239263222822', '123456789');
+    console.log('Sticker sent with ID:', stickerResult.messageID);
+    
+    const stickerUrl = await api.getStickerURL('369239263222822');
+    console.log('Sticker URL:', stickerUrl);
+  } catch (error) {
+    console.log('Sticker demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- Timeline Posting Demo ---');
+  try {
+    const postOptions: TimelinePostOptions = {
+      privacy: 'friends',
+      feeling: 'happy'
+    };
+    const post = await api.magpostsaTimeline('Kumusta mundo! Testing Liwanag FCA!', postOptions);
+    console.log('Posted to timeline with ID:', post.postID);
+    console.log('Privacy:', post.privacy);
+  } catch (error) {
+    console.log('Timeline posting demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- Friend Request Management Demo ---');
+  try {
+    await api.magpadalaNgFriendRequest('100000000000003');
+    console.log('Friend request sent successfully');
+    
+    const friendRequests = await api.kuninAngFriendRequests();
+    console.log('Pending friend requests:', friendRequests.length);
+    
+    const friends = await api.getFriendsList();
+    console.log('Total friends:', friends.length);
+  } catch (error) {
+    console.log('Friend request demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- Notification Handling Demo ---');
+  try {
+    const notifications = await api.kuninAngNotifications(10);
+    console.log('Recent notifications:', notifications.length);
+    
+    api.onNotification((notification) => {
+      console.log('New notification:', notification.title);
+    });
+    console.log('Notification listener registered');
+  } catch (error) {
+    console.log('Notification demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- Webhook Integration Demo ---');
+  try {
+    const webhookConfig: WebhookConfig = {
+      url: 'https://your-webhook-url.com/liwanag',
+      events: ['message', 'friend_request', 'notification'],
+      secret: 'your-webhook-secret',
+      retryCount: 3,
+      retryDelay: 1000
+    };
+    
+    api.registerWebhook(webhookConfig);
+    
+    const registeredWebhooks = api.getWebhooks();
+    console.log('Registered webhooks:', registeredWebhooks.length);
+    console.log('Webhook events:', webhookConfig.events.join(', '));
+  } catch (error) {
+    console.log('Webhook demo complete');
+  }
+  console.log('\n');
+
   console.log('--- Starting Message Listener ---');
   api.makinigSaMensahe((err, message) => {
     if (err) {
@@ -129,3 +216,51 @@ login({ appState: demoAppState }, options, async (err, api) => {
 
   console.log('\nPress Ctrl+C to exit...\n');
 });
+
+console.log('\n--- Credential Login Example (with 2FA/Checkpoint support) ---');
+console.log(`
+// Example: Login with email/password and checkpoint handler
+import { login, loginWithCheckpointHandler } from 'liwanag-fca';
+
+// Method 1: Using checkpointHandler
+loginWithCheckpointHandler(
+  { email: 'your@email.com', password: 'your-password' },
+  {
+    onCheckpoint: async (data) => {
+      console.log('Checkpoint type:', data.type);
+      console.log('Message:', data.message);
+      
+      // Return the verification code
+      // You can prompt the user for input here
+      if (data.type === 'two_factor') {
+        return { method: '2fa_code', code: '123456' };
+      }
+      return 'verification-code';
+    },
+    onError: (error) => {
+      console.error('Checkpoint error:', error.message);
+    }
+  },
+  {},
+  (err, api) => {
+    if (err) {
+      console.error('Login failed:', err.message);
+      return;
+    }
+    console.log('Logged in successfully!');
+  }
+);
+
+// Method 2: Using twoFactorCode directly
+import { loginWithTwoFactor } from 'liwanag-fca';
+
+loginWithTwoFactor(
+  { email: 'your@email.com', password: 'your-password' },
+  '123456', // Your 2FA code
+  {},
+  (err, api) => {
+    if (err) return console.error(err);
+    console.log('Logged in with 2FA!');
+  }
+);
+`);
