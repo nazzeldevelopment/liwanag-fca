@@ -396,6 +396,89 @@ export interface LiwanagApi {
   disablePlugin(pluginId: string): void;
   getPlugins(): Plugin[];
   getPlugin(pluginId: string): Plugin | undefined;
+
+  // Live Video Streaming
+  startLiveStream(options: LiveStreamOptions, callback?: (err: Error | null, stream: LiveStream) => void): Promise<LiveStream>;
+  magsimulaNgLiveStream(options: LiveStreamOptions, callback?: (err: Error | null, stream: LiveStream) => void): Promise<LiveStream>;
+  endLiveStream(streamID: string, callback?: (err: Error | null) => void): Promise<void>;
+  tapusinAngLiveStream(streamID: string, callback?: (err: Error | null) => void): Promise<void>;
+  getLiveStreams(callback?: (err: Error | null, streams: LiveStream[]) => void): Promise<LiveStream[]>;
+  kuninAngMgaLiveStream(callback?: (err: Error | null, streams: LiveStream[]) => void): Promise<LiveStream[]>;
+  onLiveStreamEvent(streamID: string, callback: LiveStreamCallback): void;
+
+  // NLP Chatbot Integration
+  configureChatbot(config: ChatbotConfig): void;
+  iConfigAngChatbot(config: ChatbotConfig): void;
+  enableChatbot(): void;
+  disableChatbot(): void;
+  addChatbotIntent(intent: ChatbotIntent): void;
+  removeChatbotIntent(intentName: string): void;
+  processChatbotMessage(message: string, userID: string): Promise<ChatbotResponse>;
+  getChatbotContext(userID: string): ChatbotContext | undefined;
+  clearChatbotContext(userID: string): void;
+
+  // Multi-Account Management
+  addAccount(appState: AppState, name?: string): Promise<AccountInfo>;
+  magdagdagNgAccount(appState: AppState, name?: string): Promise<AccountInfo>;
+  removeAccount(accountID: string): void;
+  switchAccount(accountID: string, options?: AccountSwitchOptions): Promise<void>;
+  lumipatNgAccount(accountID: string, options?: AccountSwitchOptions): Promise<void>;
+  getAccounts(): AccountInfo[];
+  kuninAngMgaAccount(): AccountInfo[];
+  getActiveAccount(): AccountInfo | undefined;
+  getAccountStats(accountID?: string): AccountStats;
+  configureAccountManager(config: AccountManagerConfig): void;
+
+  // Automated Response Templates
+  addTemplate(template: ResponseTemplate): void;
+  magdagdagNgTemplate(template: ResponseTemplate): void;
+  removeTemplate(templateID: string): void;
+  updateTemplate(templateID: string, updates: Partial<ResponseTemplate>): void;
+  getTemplates(): ResponseTemplate[];
+  kuninAngMgaTemplate(): ResponseTemplate[];
+  enableTemplate(templateID: string): void;
+  disableTemplate(templateID: string): void;
+  testTemplate(templateID: string, testMessage: string): TemplateResponse | null;
+
+  // Message Scheduling
+  scheduleMessage(threadID: string, message: string | SendMessageOptions, scheduledTime: Date, options?: Partial<ScheduledMessage>): Promise<ScheduledMessage>;
+  magScheduleNgMensahe(threadID: string, message: string | SendMessageOptions, scheduledTime: Date, options?: Partial<ScheduledMessage>): Promise<ScheduledMessage>;
+  cancelScheduledMessage(messageID: string): void;
+  getScheduledMessages(): ScheduledMessage[];
+  kuninAngMgaScheduledMessage(): ScheduledMessage[];
+  updateScheduledMessage(messageID: string, updates: Partial<ScheduledMessage>): void;
+  configureScheduler(config: SchedulerConfig): void;
+
+  // Spam Detection
+  configureSpamDetection(config: SpamDetectionConfig): void;
+  iConfigAngSpamDetection(config: SpamDetectionConfig): void;
+  checkForSpam(message: string, senderID: string, threadID: string): Promise<SpamCheckResult>;
+  suriiinKungSpam(message: string, senderID: string, threadID: string): Promise<SpamCheckResult>;
+  addToWhitelist(userID: string): void;
+  addToBlacklist(userID: string): void;
+  removeFromWhitelist(userID: string): void;
+  removeFromBlacklist(userID: string): void;
+  getSpamReports(): SpamReport[];
+  resolveSpamReport(reportID: string): void;
+
+  // Group Analytics
+  getGroupAnalytics(groupID: string, period?: 'day' | 'week' | 'month' | 'all'): Promise<GroupAnalytics>;
+  kuninAngGroupAnalytics(groupID: string, period?: 'day' | 'week' | 'month' | 'all'): Promise<GroupAnalytics>;
+  exportGroupAnalytics(groupID: string, format: 'json' | 'csv', path: string): Promise<void>;
+  getTopContributors(groupID: string, limit?: number): Promise<GroupContributor[]>;
+  kuninAngTopContributors(groupID: string, limit?: number): Promise<GroupContributor[]>;
+  getGroupSentiment(groupID: string): Promise<GroupSentiment>;
+
+  // Cross-Platform Messaging Bridge
+  configureBridge(config: MessagingBridgeConfig): void;
+  iConfigAngBridge(config: MessagingBridgeConfig): void;
+  addPlatform(platformConfig: PlatformConfig): void;
+  removePlatform(platform: SupportedPlatform): void;
+  getBridgeStats(): BridgeStats[];
+  kuninAngBridgeStats(): BridgeStats[];
+  sendCrossPlatformMessage(platform: SupportedPlatform, channel: string, message: string): Promise<BridgedMessage>;
+  magpadalaSaIbangPlatform(platform: SupportedPlatform, channel: string, message: string): Promise<BridgedMessage>;
+  getBridgedMessages(): BridgedMessage[];
 }
 
 // Two-Factor Authentication Types
@@ -808,4 +891,382 @@ export interface PluginManager {
   getPlugin(pluginId: string): Plugin | undefined;
   getPlugins(): Plugin[];
   executeHook(event: PluginEventType, data: any): Promise<any>;
+}
+
+// ==================== LIVE VIDEO STREAMING TYPES ====================
+export interface LiveStreamOptions {
+  title: string;
+  description?: string;
+  privacy?: 'public' | 'friends' | 'only_me';
+  allowComments?: boolean;
+  notifyFollowers?: boolean;
+  scheduledTime?: Date;
+}
+
+export interface LiveStream {
+  streamID: string;
+  hostID: string;
+  title: string;
+  description?: string;
+  privacy: string;
+  status: 'scheduled' | 'live' | 'ended';
+  rtmpUrl?: string;
+  streamKey?: string;
+  viewers: number;
+  peakViewers: number;
+  likes: number;
+  comments: number;
+  startedAt?: number;
+  endedAt?: number;
+  duration?: number;
+  timestamp: number;
+}
+
+export interface LiveStreamComment {
+  id: string;
+  userID: string;
+  userName: string;
+  message: string;
+  timestamp: number;
+}
+
+export interface LiveStreamCallback {
+  (event: 'viewer_joined' | 'viewer_left' | 'comment' | 'reaction' | 'ended', data: any): void;
+}
+
+// ==================== NLP CHATBOT TYPES ====================
+export interface ChatbotConfig {
+  enabled: boolean;
+  language: 'tl' | 'en' | 'auto';
+  responseDelay?: number;
+  typingSimulation?: boolean;
+  intents: ChatbotIntent[];
+  fallbackResponse?: string;
+  nlpProvider?: 'built-in' | 'openai' | 'dialogflow';
+  apiKey?: string;
+  contextMemory?: number;
+}
+
+export interface ChatbotIntent {
+  name: string;
+  patterns: string[];
+  responses: string[];
+  entities?: string[];
+  context?: string[];
+  followUp?: string[];
+  priority?: number;
+}
+
+export interface ChatbotResponse {
+  intent: string;
+  confidence: number;
+  response: string;
+  entities: Record<string, string>;
+  suggestedActions?: string[];
+}
+
+export interface ChatbotContext {
+  sessionID: string;
+  userID: string;
+  history: ChatbotMessage[];
+  entities: Record<string, any>;
+  currentIntent?: string;
+  lastInteraction: number;
+}
+
+export interface ChatbotMessage {
+  role: 'user' | 'bot';
+  message: string;
+  timestamp: number;
+  intent?: string;
+}
+
+// ==================== MULTI-ACCOUNT MANAGEMENT TYPES ====================
+export interface AccountInfo {
+  accountID: string;
+  userID: string;
+  name: string;
+  email?: string;
+  status: 'active' | 'inactive' | 'suspended' | 'rate_limited';
+  lastActive: number;
+  createdAt: number;
+  appState?: AppState;
+}
+
+export interface AccountSwitchOptions {
+  preserveListeners?: boolean;
+  warmup?: boolean;
+  timeout?: number;
+}
+
+export interface AccountManagerConfig {
+  maxAccounts: number;
+  autoRotate?: boolean;
+  rotateInterval?: number;
+  balanceLoad?: boolean;
+  failoverEnabled?: boolean;
+}
+
+export interface AccountStats {
+  accountID: string;
+  messagesSent: number;
+  messagesReceived: number;
+  errors: number;
+  rateLimitHits: number;
+  uptime: number;
+}
+
+// ==================== AUTOMATED RESPONSE TEMPLATES TYPES ====================
+export interface ResponseTemplate {
+  id: string;
+  name: string;
+  category: string;
+  trigger: TemplateTrigger;
+  response: TemplateResponse;
+  conditions?: TemplateCondition[];
+  schedule?: TemplateSchedule;
+  enabled: boolean;
+  priority: number;
+  stats: TemplateStats;
+}
+
+export interface TemplateTrigger {
+  type: 'keyword' | 'regex' | 'intent' | 'event' | 'scheduled';
+  value: string | string[];
+  caseSensitive?: boolean;
+  matchType?: 'exact' | 'contains' | 'startsWith' | 'endsWith';
+}
+
+export interface TemplateResponse {
+  type: 'text' | 'random' | 'sequential' | 'conditional';
+  content: string | string[];
+  attachments?: string[];
+  sticker?: string;
+  delay?: number;
+  variables?: Record<string, string>;
+}
+
+export interface TemplateCondition {
+  field: string;
+  operator: 'equals' | 'contains' | 'greaterThan' | 'lessThan' | 'in' | 'notIn';
+  value: any;
+}
+
+export interface TemplateSchedule {
+  enabled: boolean;
+  days?: number[];
+  startTime?: string;
+  endTime?: string;
+  timezone?: string;
+}
+
+export interface TemplateStats {
+  triggered: number;
+  lastTriggered?: number;
+  successRate: number;
+}
+
+// ==================== MESSAGE SCHEDULING TYPES ====================
+export interface ScheduledMessage {
+  id: string;
+  threadID: string;
+  message: string | SendMessageOptions;
+  scheduledTime: Date;
+  timezone?: string;
+  recurrence?: MessageRecurrence;
+  status: 'pending' | 'sent' | 'failed' | 'cancelled';
+  createdAt: number;
+  sentAt?: number;
+  error?: string;
+  retryCount?: number;
+}
+
+export interface MessageRecurrence {
+  type: 'once' | 'daily' | 'weekly' | 'monthly' | 'custom';
+  interval?: number;
+  daysOfWeek?: number[];
+  dayOfMonth?: number;
+  endDate?: Date;
+  maxOccurrences?: number;
+  occurrenceCount?: number;
+}
+
+export interface SchedulerConfig {
+  enabled: boolean;
+  checkInterval?: number;
+  maxRetries?: number;
+  retryDelay?: number;
+  timezone?: string;
+}
+
+// ==================== SPAM DETECTION TYPES ====================
+export interface SpamDetectionConfig {
+  enabled: boolean;
+  sensitivity: 'low' | 'medium' | 'high';
+  actions: SpamAction[];
+  whitelist?: string[];
+  blacklist?: string[];
+  customPatterns?: SpamPattern[];
+  mlEnabled?: boolean;
+  reportToFacebook?: boolean;
+}
+
+export interface SpamPattern {
+  name: string;
+  pattern: string;
+  type: 'regex' | 'keyword' | 'fuzzy';
+  weight: number;
+  action?: SpamAction;
+}
+
+export type SpamAction = 'ignore' | 'delete' | 'block' | 'report' | 'notify' | 'quarantine';
+
+export interface SpamCheckResult {
+  isSpam: boolean;
+  score: number;
+  reasons: SpamReason[];
+  suggestedAction: SpamAction;
+  confidence: number;
+}
+
+export interface SpamReason {
+  type: 'pattern' | 'behavior' | 'reputation' | 'content' | 'frequency';
+  description: string;
+  weight: number;
+}
+
+export interface SpamReport {
+  id: string;
+  messageID: string;
+  senderID: string;
+  threadID: string;
+  content: string;
+  reasons: SpamReason[];
+  action: SpamAction;
+  timestamp: number;
+  resolved?: boolean;
+}
+
+// ==================== GROUP ANALYTICS TYPES ====================
+export interface GroupAnalytics {
+  groupID: string;
+  groupName: string;
+  period: 'day' | 'week' | 'month' | 'all';
+  memberStats: GroupMemberStats;
+  activityStats: GroupActivityStats;
+  contentStats: GroupContentStats;
+  growthStats: GroupGrowthStats;
+  topContributors: GroupContributor[];
+  peakActivityTimes: PeakActivityTime[];
+  sentimentAnalysis?: GroupSentiment;
+}
+
+export interface GroupMemberStats {
+  totalMembers: number;
+  activeMembers: number;
+  newMembers: number;
+  leftMembers: number;
+  adminCount: number;
+  averageResponseTime: number;
+}
+
+export interface GroupActivityStats {
+  totalMessages: number;
+  averageMessagesPerDay: number;
+  photos: number;
+  videos: number;
+  links: number;
+  polls: number;
+  events: number;
+  reactions: number;
+}
+
+export interface GroupContentStats {
+  topTopics: { topic: string; count: number }[];
+  topEmojis: { emoji: string; count: number }[];
+  topLinks: { domain: string; count: number }[];
+  mediaRatio: number;
+}
+
+export interface GroupGrowthStats {
+  memberGrowthRate: number;
+  activityGrowthRate: number;
+  retentionRate: number;
+  churnRate: number;
+}
+
+export interface GroupContributor {
+  userID: string;
+  userName: string;
+  messageCount: number;
+  reactionCount: number;
+  mediaCount: number;
+  score: number;
+}
+
+export interface PeakActivityTime {
+  hour: number;
+  day: number;
+  messageCount: number;
+}
+
+export interface GroupSentiment {
+  positive: number;
+  neutral: number;
+  negative: number;
+  overallScore: number;
+}
+
+// ==================== CROSS-PLATFORM MESSAGING BRIDGE TYPES ====================
+export interface MessagingBridgeConfig {
+  enabled: boolean;
+  platforms: PlatformConfig[];
+  syncMode: 'one-way' | 'two-way';
+  messageFormat?: 'preserve' | 'standardize';
+  attachmentHandling?: 'forward' | 'convert' | 'link';
+}
+
+export interface PlatformConfig {
+  platform: SupportedPlatform;
+  enabled: boolean;
+  credentials: Record<string, string>;
+  channelMappings: ChannelMapping[];
+  messagePrefix?: string;
+  webhookUrl?: string;
+}
+
+export type SupportedPlatform = 'telegram' | 'discord' | 'slack' | 'whatsapp' | 'viber' | 'line' | 'messenger';
+
+export interface ChannelMapping {
+  sourceChannel: string;
+  targetChannel: string;
+  bidirectional: boolean;
+  filters?: MessageFilter[];
+}
+
+export interface MessageFilter {
+  type: 'include' | 'exclude';
+  field: 'sender' | 'content' | 'type';
+  pattern: string;
+}
+
+export interface BridgedMessage {
+  id: string;
+  sourcePlatform: SupportedPlatform;
+  targetPlatform: SupportedPlatform;
+  sourceChannel: string;
+  targetChannel: string;
+  originalMessage: any;
+  transformedMessage: any;
+  status: 'pending' | 'sent' | 'failed';
+  timestamp: number;
+  error?: string;
+}
+
+export interface BridgeStats {
+  platform: SupportedPlatform;
+  messagesSent: number;
+  messagesReceived: number;
+  errors: number;
+  lastActivity: number;
 }

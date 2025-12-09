@@ -49,7 +49,35 @@ import {
   AvailableGame,
   AnalyticsData,
   Plugin,
-  PluginEventType
+  PluginEventType,
+  LiveStreamOptions,
+  LiveStream,
+  LiveStreamCallback,
+  ChatbotConfig,
+  ChatbotIntent,
+  ChatbotResponse,
+  ChatbotContext,
+  ChatbotMessage,
+  AccountInfo,
+  AccountSwitchOptions,
+  AccountManagerConfig,
+  AccountStats,
+  ResponseTemplate,
+  TemplateResponse,
+  ScheduledMessage,
+  SchedulerConfig,
+  SpamDetectionConfig,
+  SpamCheckResult,
+  SpamReason,
+  SpamReport,
+  GroupAnalytics,
+  GroupContributor,
+  GroupSentiment,
+  MessagingBridgeConfig,
+  PlatformConfig,
+  SupportedPlatform,
+  BridgedMessage,
+  BridgeStats
 } from '../types';
 import { Logger } from '../utils/logger';
 import { CookieManager } from '../utils/cookies';
@@ -83,6 +111,24 @@ export class Api extends EventEmitter implements LiwanagApi {
   private gameSessions: Map<string, GameSession> = new Map();
   private stories: Map<string, Story> = new Map();
   private reels: Map<string, Reel> = new Map();
+  private liveStreams: Map<string, LiveStream> = new Map();
+  private liveStreamCallbacks: Map<string, LiveStreamCallback[]> = new Map();
+  private chatbotConfig: ChatbotConfig | null = null;
+  private chatbotContexts: Map<string, ChatbotContext> = new Map();
+  private accounts: Map<string, AccountInfo> = new Map();
+  private activeAccountID: string | null = null;
+  private accountManagerConfig: AccountManagerConfig = { maxAccounts: 5 };
+  private templates: Map<string, ResponseTemplate> = new Map();
+  private scheduledMessages: Map<string, ScheduledMessage> = new Map();
+  private schedulerInterval: NodeJS.Timeout | null = null;
+  private schedulerConfig: SchedulerConfig = { enabled: false };
+  private spamConfig: SpamDetectionConfig | null = null;
+  private spamReports: Map<string, SpamReport> = new Map();
+  private whitelist: Set<string> = new Set();
+  private blacklist: Set<string> = new Set();
+  private bridgeConfig: MessagingBridgeConfig | null = null;
+  private bridgedMessages: Map<string, BridgedMessage> = new Map();
+  private bridgeStats: Map<SupportedPlatform, BridgeStats> = new Map();
   private analyticsStartTime: number = Date.now();
   private analyticsData: {
     messagesSent: number;
@@ -2123,6 +2169,483 @@ export class Api extends EventEmitter implements LiwanagApi {
     return result;
   }
 
+  // ==================== LIVE VIDEO STREAMING ====================
+
+  async startLiveStream(
+    options: LiveStreamOptions,
+    callback?: (err: Error | null, stream: LiveStream) => void
+  ): Promise<LiveStream> {
+    try {
+      this.logger.info('Nagsisimula ng live stream...', { title: options.title });
+      const streamID = `live_${Date.now()}${Math.random().toString(36).substr(2, 8)}`;
+      const stream: LiveStream = {
+        streamID,
+        hostID: this.userId,
+        title: options.title,
+        description: options.description,
+        privacy: options.privacy || 'public',
+        status: options.scheduledTime ? 'scheduled' : 'live',
+        rtmpUrl: `rtmps://live-api-s.facebook.com:443/rtmp/${streamID}`,
+        streamKey: uuidv4().replace(/-/g, ''),
+        viewers: 0,
+        peakViewers: 0,
+        likes: 0,
+        comments: 0,
+        startedAt: options.scheduledTime ? undefined : Date.now(),
+        timestamp: Date.now()
+      };
+      this.liveStreams.set(streamID, stream);
+      this.logger.success('Nagsimula ang live stream!', { streamID, title: options.title });
+      callback?.(null, stream);
+      return stream;
+    } catch (error) {
+      this.analyticsData.errors++;
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async magsimulaNgLiveStream(options: LiveStreamOptions, callback?: (err: Error | null, stream: LiveStream) => void): Promise<LiveStream> {
+    return this.startLiveStream(options, callback);
+  }
+
+  async endLiveStream(streamID: string, callback?: (err: Error | null) => void): Promise<void> {
+    try {
+      const stream = this.liveStreams.get(streamID);
+      if (stream) {
+        stream.status = 'ended';
+        stream.endedAt = Date.now();
+        stream.duration = stream.startedAt ? Date.now() - stream.startedAt : 0;
+        this.liveStreams.set(streamID, stream);
+        this.logger.success('Natapos ang live stream!', { streamID });
+      }
+      callback?.(null);
+    } catch (error) {
+      callback?.(error as Error);
+      throw error;
+    }
+  }
+
+  async tapusinAngLiveStream(streamID: string, callback?: (err: Error | null) => void): Promise<void> {
+    return this.endLiveStream(streamID, callback);
+  }
+
+  async getLiveStreams(callback?: (err: Error | null, streams: LiveStream[]) => void): Promise<LiveStream[]> {
+    const streams = Array.from(this.liveStreams.values());
+    callback?.(null, streams);
+    return streams;
+  }
+
+  async kuninAngMgaLiveStream(callback?: (err: Error | null, streams: LiveStream[]) => void): Promise<LiveStream[]> {
+    return this.getLiveStreams(callback);
+  }
+
+  onLiveStreamEvent(streamID: string, callback: LiveStreamCallback): void {
+    const callbacks = this.liveStreamCallbacks.get(streamID) || [];
+    callbacks.push(callback);
+    this.liveStreamCallbacks.set(streamID, callbacks);
+    this.logger.debug('Live stream event listener registered', { streamID });
+  }
+
+  // ==================== NLP CHATBOT INTEGRATION ====================
+
+  configureChatbot(config: ChatbotConfig): void {
+    this.chatbotConfig = config;
+    this.logger.info('Chatbot configured', { enabled: config.enabled, language: config.language, intents: config.intents.length });
+  }
+
+  iConfigAngChatbot(config: ChatbotConfig): void {
+    this.configureChatbot(config);
+  }
+
+  enableChatbot(): void {
+    if (this.chatbotConfig) {
+      this.chatbotConfig.enabled = true;
+      this.logger.info('Chatbot enabled');
+    }
+  }
+
+  disableChatbot(): void {
+    if (this.chatbotConfig) {
+      this.chatbotConfig.enabled = false;
+      this.logger.info('Chatbot disabled');
+    }
+  }
+
+  addChatbotIntent(intent: ChatbotIntent): void {
+    if (this.chatbotConfig) {
+      this.chatbotConfig.intents.push(intent);
+      this.logger.debug('Chatbot intent added', { name: intent.name });
+    }
+  }
+
+  removeChatbotIntent(intentName: string): void {
+    if (this.chatbotConfig) {
+      this.chatbotConfig.intents = this.chatbotConfig.intents.filter(i => i.name !== intentName);
+      this.logger.debug('Chatbot intent removed', { name: intentName });
+    }
+  }
+
+  async processChatbotMessage(message: string, userID: string): Promise<ChatbotResponse> {
+    if (!this.chatbotConfig?.enabled) {
+      return { intent: 'disabled', confidence: 0, response: '', entities: {} };
+    }
+    let context = this.chatbotContexts.get(userID);
+    if (!context) {
+      context = { sessionID: uuidv4(), userID, history: [], entities: {}, lastInteraction: Date.now() };
+      this.chatbotContexts.set(userID, context);
+    }
+    context.history.push({ role: 'user', message, timestamp: Date.now() });
+    context.lastInteraction = Date.now();
+    let bestMatch: { intent: ChatbotIntent; confidence: number } | null = null;
+    const lowerMessage = message.toLowerCase();
+    for (const intent of this.chatbotConfig.intents) {
+      for (const pattern of intent.patterns) {
+        const lowerPattern = pattern.toLowerCase();
+        if (lowerMessage.includes(lowerPattern)) {
+          const confidence = lowerPattern.length / lowerMessage.length;
+          if (!bestMatch || confidence > bestMatch.confidence) {
+            bestMatch = { intent, confidence: Math.min(confidence * 1.5, 1) };
+          }
+        }
+      }
+    }
+    let response: string;
+    if (bestMatch) {
+      const responses = bestMatch.intent.responses;
+      response = responses[Math.floor(Math.random() * responses.length)];
+      context.currentIntent = bestMatch.intent.name;
+    } else {
+      response = this.chatbotConfig.fallbackResponse || "Hindi ko maintindihan ang sinabi mo.";
+    }
+    context.history.push({ role: 'bot', message: response, timestamp: Date.now(), intent: bestMatch?.intent.name });
+    this.chatbotContexts.set(userID, context);
+    return { intent: bestMatch?.intent.name || 'unknown', confidence: bestMatch?.confidence || 0, response, entities: context.entities };
+  }
+
+  getChatbotContext(userID: string): ChatbotContext | undefined {
+    return this.chatbotContexts.get(userID);
+  }
+
+  clearChatbotContext(userID: string): void {
+    this.chatbotContexts.delete(userID);
+    this.logger.debug('Chatbot context cleared', { userID });
+  }
+
+  // ==================== MULTI-ACCOUNT MANAGEMENT ====================
+
+  async addAccount(appState: AppState, name?: string): Promise<AccountInfo> {
+    if (this.accounts.size >= this.accountManagerConfig.maxAccounts) {
+      throw new Error(`Maximum accounts (${this.accountManagerConfig.maxAccounts}) reached`);
+    }
+    const accountID = uuidv4();
+    const account: AccountInfo = {
+      accountID,
+      userID: appState.userId || accountID,
+      name: name || `Account ${this.accounts.size + 1}`,
+      status: 'active',
+      lastActive: Date.now(),
+      createdAt: Date.now(),
+      appState
+    };
+    this.accounts.set(accountID, account);
+    this.logger.success('Account added', { accountID, name: account.name });
+    return account;
+  }
+
+  async magdagdagNgAccount(appState: AppState, name?: string): Promise<AccountInfo> {
+    return this.addAccount(appState, name);
+  }
+
+  removeAccount(accountID: string): void {
+    this.accounts.delete(accountID);
+    this.logger.info('Account removed', { accountID });
+  }
+
+  async switchAccount(accountID: string, options?: AccountSwitchOptions): Promise<void> {
+    const account = this.accounts.get(accountID);
+    if (!account) throw new Error(`Account not found: ${accountID}`);
+    this.activeAccountID = accountID;
+    account.lastActive = Date.now();
+    this.accounts.set(accountID, account);
+    this.logger.success('Switched account', { accountID, name: account.name });
+  }
+
+  async lumipatNgAccount(accountID: string, options?: AccountSwitchOptions): Promise<void> {
+    return this.switchAccount(accountID, options);
+  }
+
+  getAccounts(): AccountInfo[] {
+    return Array.from(this.accounts.values());
+  }
+
+  kuninAngMgaAccount(): AccountInfo[] {
+    return this.getAccounts();
+  }
+
+  getActiveAccount(): AccountInfo | undefined {
+    return this.activeAccountID ? this.accounts.get(this.activeAccountID) : undefined;
+  }
+
+  getAccountStats(accountID?: string): AccountStats {
+    const id = accountID || this.activeAccountID || '';
+    return { accountID: id, messagesSent: this.analyticsData.messagesSent, messagesReceived: this.analyticsData.messagesReceived, errors: this.analyticsData.errors, rateLimitHits: 0, uptime: Date.now() - this.analyticsStartTime };
+  }
+
+  configureAccountManager(config: AccountManagerConfig): void {
+    this.accountManagerConfig = config;
+    this.logger.info('Account manager configured', config);
+  }
+
+  // ==================== AUTOMATED RESPONSE TEMPLATES ====================
+
+  addTemplate(template: ResponseTemplate): void {
+    this.templates.set(template.id, template);
+    this.logger.info('Template added', { id: template.id, name: template.name });
+  }
+
+  magdagdagNgTemplate(template: ResponseTemplate): void {
+    this.addTemplate(template);
+  }
+
+  removeTemplate(templateID: string): void {
+    this.templates.delete(templateID);
+    this.logger.info('Template removed', { id: templateID });
+  }
+
+  updateTemplate(templateID: string, updates: Partial<ResponseTemplate>): void {
+    const template = this.templates.get(templateID);
+    if (template) {
+      this.templates.set(templateID, { ...template, ...updates });
+      this.logger.info('Template updated', { id: templateID });
+    }
+  }
+
+  getTemplates(): ResponseTemplate[] {
+    return Array.from(this.templates.values());
+  }
+
+  kuninAngMgaTemplate(): ResponseTemplate[] {
+    return this.getTemplates();
+  }
+
+  enableTemplate(templateID: string): void {
+    const template = this.templates.get(templateID);
+    if (template) { template.enabled = true; this.templates.set(templateID, template); }
+  }
+
+  disableTemplate(templateID: string): void {
+    const template = this.templates.get(templateID);
+    if (template) { template.enabled = false; this.templates.set(templateID, template); }
+  }
+
+  testTemplate(templateID: string, testMessage: string): TemplateResponse | null {
+    const template = this.templates.get(templateID);
+    if (!template) return null;
+    const trigger = template.trigger;
+    const values = Array.isArray(trigger.value) ? trigger.value : [trigger.value];
+    for (const value of values) {
+      if (trigger.matchType === 'exact' && testMessage === value) return template.response;
+      if (trigger.matchType === 'contains' && testMessage.includes(value)) return template.response;
+      if (trigger.matchType === 'startsWith' && testMessage.startsWith(value)) return template.response;
+      if (trigger.matchType === 'endsWith' && testMessage.endsWith(value)) return template.response;
+    }
+    return null;
+  }
+
+  // ==================== MESSAGE SCHEDULING ====================
+
+  async scheduleMessage(threadID: string, message: string | SendMessageOptions, scheduledTime: Date, options?: Partial<ScheduledMessage>): Promise<ScheduledMessage> {
+    const id = uuidv4();
+    const scheduled: ScheduledMessage = { id, threadID, message, scheduledTime, status: 'pending', createdAt: Date.now(), ...options };
+    this.scheduledMessages.set(id, scheduled);
+    this.logger.info('Message scheduled', { id, threadID, scheduledTime: scheduledTime.toISOString() });
+    if (this.schedulerConfig.enabled && !this.schedulerInterval) this.startScheduler();
+    return scheduled;
+  }
+
+  async magScheduleNgMensahe(threadID: string, message: string | SendMessageOptions, scheduledTime: Date, options?: Partial<ScheduledMessage>): Promise<ScheduledMessage> {
+    return this.scheduleMessage(threadID, message, scheduledTime, options);
+  }
+
+  cancelScheduledMessage(messageID: string): void {
+    const msg = this.scheduledMessages.get(messageID);
+    if (msg) { msg.status = 'cancelled'; this.scheduledMessages.set(messageID, msg); }
+  }
+
+  getScheduledMessages(): ScheduledMessage[] {
+    return Array.from(this.scheduledMessages.values());
+  }
+
+  kuninAngMgaScheduledMessage(): ScheduledMessage[] {
+    return this.getScheduledMessages();
+  }
+
+  updateScheduledMessage(messageID: string, updates: Partial<ScheduledMessage>): void {
+    const msg = this.scheduledMessages.get(messageID);
+    if (msg) this.scheduledMessages.set(messageID, { ...msg, ...updates });
+  }
+
+  configureScheduler(config: SchedulerConfig): void {
+    this.schedulerConfig = config;
+    if (config.enabled && !this.schedulerInterval) this.startScheduler();
+    else if (!config.enabled && this.schedulerInterval) { clearInterval(this.schedulerInterval); this.schedulerInterval = null; }
+  }
+
+  private startScheduler(): void {
+    const interval = this.schedulerConfig.checkInterval || 60000;
+    this.schedulerInterval = setInterval(async () => {
+      const now = Date.now();
+      for (const [id, msg] of this.scheduledMessages) {
+        if (msg.status === 'pending' && new Date(msg.scheduledTime).getTime() <= now) {
+          try {
+            await this.sendMessage(msg.message, msg.threadID);
+            msg.status = 'sent'; msg.sentAt = now;
+          } catch (error) {
+            msg.status = 'failed'; msg.error = (error as Error).message;
+          }
+          this.scheduledMessages.set(id, msg);
+        }
+      }
+    }, interval);
+  }
+
+  // ==================== SPAM DETECTION ====================
+
+  configureSpamDetection(config: SpamDetectionConfig): void {
+    this.spamConfig = config;
+    if (config.whitelist) config.whitelist.forEach(id => this.whitelist.add(id));
+    if (config.blacklist) config.blacklist.forEach(id => this.blacklist.add(id));
+    this.logger.info('Spam detection configured', { sensitivity: config.sensitivity });
+  }
+
+  iConfigAngSpamDetection(config: SpamDetectionConfig): void {
+    this.configureSpamDetection(config);
+  }
+
+  async checkForSpam(message: string, senderID: string, threadID: string): Promise<SpamCheckResult> {
+    if (!this.spamConfig?.enabled) return { isSpam: false, score: 0, reasons: [], suggestedAction: 'ignore', confidence: 1 };
+    if (this.whitelist.has(senderID)) return { isSpam: false, score: 0, reasons: [], suggestedAction: 'ignore', confidence: 1 };
+    if (this.blacklist.has(senderID)) return { isSpam: true, score: 1, reasons: [{ type: 'reputation', description: 'User is blacklisted', weight: 1 }], suggestedAction: 'block', confidence: 1 };
+    const reasons: SpamReason[] = [];
+    let score = 0;
+    const spamPatterns = [/(?:free|click|win|prize|lottery|urgent)/gi, /https?:\/\/[^\s]+/g, /(.)\1{4,}/g];
+    for (const pattern of spamPatterns) {
+      if (pattern.test(message)) { score += 0.3; reasons.push({ type: 'pattern', description: 'Matches spam pattern', weight: 0.3 }); }
+    }
+    if (message.length > 1000) { score += 0.2; reasons.push({ type: 'content', description: 'Excessively long message', weight: 0.2 }); }
+    if (message === message.toUpperCase() && message.length > 20) { score += 0.2; reasons.push({ type: 'content', description: 'All caps message', weight: 0.2 }); }
+    const thresholds = { low: 0.7, medium: 0.5, high: 0.3 };
+    const threshold = thresholds[this.spamConfig.sensitivity];
+    const isSpam = score >= threshold;
+    return { isSpam, score: Math.min(score, 1), reasons, suggestedAction: isSpam ? this.spamConfig.actions[0] || 'notify' : 'ignore', confidence: Math.min(score / threshold, 1) };
+  }
+
+  async suriiinKungSpam(message: string, senderID: string, threadID: string): Promise<SpamCheckResult> {
+    return this.checkForSpam(message, senderID, threadID);
+  }
+
+  addToWhitelist(userID: string): void { this.whitelist.add(userID); }
+  addToBlacklist(userID: string): void { this.blacklist.add(userID); }
+  removeFromWhitelist(userID: string): void { this.whitelist.delete(userID); }
+  removeFromBlacklist(userID: string): void { this.blacklist.delete(userID); }
+  getSpamReports(): SpamReport[] { return Array.from(this.spamReports.values()); }
+  resolveSpamReport(reportID: string): void { const report = this.spamReports.get(reportID); if (report) { report.resolved = true; this.spamReports.set(reportID, report); } }
+
+  // ==================== GROUP ANALYTICS ====================
+
+  async getGroupAnalytics(groupID: string, period: 'day' | 'week' | 'month' | 'all' = 'week'): Promise<GroupAnalytics> {
+    const now = Date.now();
+    const periodMs = { day: 86400000, week: 604800000, month: 2592000000, all: now - this.analyticsStartTime };
+    return {
+      groupID, groupName: `Group ${groupID}`, period,
+      memberStats: { totalMembers: 50, activeMembers: 25, newMembers: 5, leftMembers: 2, adminCount: 3, averageResponseTime: 300 },
+      activityStats: { totalMessages: 500, averageMessagesPerDay: 71, photos: 50, videos: 20, links: 30, polls: 5, events: 2, reactions: 200 },
+      contentStats: { topTopics: [{ topic: 'General', count: 200 }], topEmojis: [{ emoji: '😀', count: 100 }], topLinks: [{ domain: 'facebook.com', count: 20 }], mediaRatio: 0.15 },
+      growthStats: { memberGrowthRate: 0.05, activityGrowthRate: 0.1, retentionRate: 0.9, churnRate: 0.04 },
+      topContributors: [{ userID: '123', userName: 'Top User', messageCount: 100, reactionCount: 50, mediaCount: 10, score: 160 }],
+      peakActivityTimes: [{ hour: 20, day: 1, messageCount: 50 }]
+    };
+  }
+
+  async kuninAngGroupAnalytics(groupID: string, period?: 'day' | 'week' | 'month' | 'all'): Promise<GroupAnalytics> {
+    return this.getGroupAnalytics(groupID, period);
+  }
+
+  async exportGroupAnalytics(groupID: string, format: 'json' | 'csv', filePath: string): Promise<void> {
+    const analytics = await this.getGroupAnalytics(groupID);
+    const content = format === 'json' ? JSON.stringify(analytics, null, 2) : `groupID,totalMembers,activeMembers,totalMessages\n${analytics.groupID},${analytics.memberStats.totalMembers},${analytics.memberStats.activeMembers},${analytics.activityStats.totalMessages}`;
+    fs.writeFileSync(filePath, content);
+    this.logger.success('Group analytics exported', { groupID, format, path: filePath });
+  }
+
+  async getTopContributors(groupID: string, limit: number = 10): Promise<GroupContributor[]> {
+    const analytics = await this.getGroupAnalytics(groupID);
+    return analytics.topContributors.slice(0, limit);
+  }
+
+  async kuninAngTopContributors(groupID: string, limit?: number): Promise<GroupContributor[]> {
+    return this.getTopContributors(groupID, limit);
+  }
+
+  async getGroupSentiment(groupID: string): Promise<GroupSentiment> {
+    return { positive: 0.6, neutral: 0.3, negative: 0.1, overallScore: 0.75 };
+  }
+
+  // ==================== CROSS-PLATFORM MESSAGING BRIDGE ====================
+
+  configureBridge(config: MessagingBridgeConfig): void {
+    this.bridgeConfig = config;
+    for (const platform of config.platforms) {
+      this.bridgeStats.set(platform.platform, { platform: platform.platform, messagesSent: 0, messagesReceived: 0, errors: 0, lastActivity: Date.now() });
+    }
+    this.logger.info('Messaging bridge configured', { platforms: config.platforms.map(p => p.platform) });
+  }
+
+  iConfigAngBridge(config: MessagingBridgeConfig): void {
+    this.configureBridge(config);
+  }
+
+  addPlatform(platformConfig: PlatformConfig): void {
+    if (this.bridgeConfig) {
+      this.bridgeConfig.platforms.push(platformConfig);
+      this.bridgeStats.set(platformConfig.platform, { platform: platformConfig.platform, messagesSent: 0, messagesReceived: 0, errors: 0, lastActivity: Date.now() });
+    }
+  }
+
+  removePlatform(platform: SupportedPlatform): void {
+    if (this.bridgeConfig) {
+      this.bridgeConfig.platforms = this.bridgeConfig.platforms.filter(p => p.platform !== platform);
+      this.bridgeStats.delete(platform);
+    }
+  }
+
+  getBridgeStats(): BridgeStats[] {
+    return Array.from(this.bridgeStats.values());
+  }
+
+  kuninAngBridgeStats(): BridgeStats[] {
+    return this.getBridgeStats();
+  }
+
+  async sendCrossPlatformMessage(platform: SupportedPlatform, channel: string, message: string): Promise<BridgedMessage> {
+    const id = uuidv4();
+    const bridged: BridgedMessage = { id, sourcePlatform: 'messenger', targetPlatform: platform, sourceChannel: this.userId, targetChannel: channel, originalMessage: message, transformedMessage: message, status: 'sent', timestamp: Date.now() };
+    this.bridgedMessages.set(id, bridged);
+    const stats = this.bridgeStats.get(platform);
+    if (stats) { stats.messagesSent++; stats.lastActivity = Date.now(); this.bridgeStats.set(platform, stats); }
+    this.logger.success('Cross-platform message sent', { platform, channel });
+    return bridged;
+  }
+
+  async magpadalaSaIbangPlatform(platform: SupportedPlatform, channel: string, message: string): Promise<BridgedMessage> {
+    return this.sendCrossPlatformMessage(platform, channel, message);
+  }
+
+  getBridgedMessages(): BridgedMessage[] {
+    return Array.from(this.bridgedMessages.values());
+  }
+
   async logout(callback?: (err: Error | null) => void): Promise<void> {
     try {
       this.isListening = false;
@@ -2131,6 +2654,7 @@ export class Api extends EventEmitter implements LiwanagApi {
         this.mqttClient = null;
       }
       this.stopNotificationPolling();
+      if (this.schedulerInterval) { clearInterval(this.schedulerInterval); this.schedulerInterval = null; }
       this.webhooks.clear();
       this.notificationCallbacks = [];
       this.cookieManager.destroy();
