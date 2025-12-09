@@ -7,7 +7,7 @@ at ang project na ito ay sumusunod sa [Semantic Versioning](https://semver.org/s
 
 ---
 
-## [0.1.0] - 2024-12-09
+## [0.1.0] - 2025-12-09
 
 ### 🎉 Initial Release
 
