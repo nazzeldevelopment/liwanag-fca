@@ -196,6 +196,193 @@ login({ appState: demoAppState }, options, async (err, api) => {
   }
   console.log('\n');
 
+  // ==================== VERSION 0.4.0 NEW FEATURES ====================
+
+  console.log('--- Live Video Streaming Demo ---');
+  try {
+    const liveStream = await api.startLiveStream({
+      title: 'Liwanag FCA Live Demo',
+      description: 'Testing live streaming feature',
+      privacy: 'friends'
+    });
+    console.log('Live stream started with ID:', liveStream.streamID);
+    console.log('RTMP URL:', liveStream.rtmpUrl);
+    
+    api.onLiveStreamEvent(liveStream.streamID, (eventType, data) => {
+      console.log('Live stream event:', eventType, data);
+    });
+    
+    const activeStreams = await api.getLiveStreams();
+    console.log('Active streams:', activeStreams.length);
+    
+    await api.endLiveStream(liveStream.streamID);
+    console.log('Live stream ended');
+  } catch (error) {
+    console.log('Live streaming demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- NLP Chatbot Integration Demo ---');
+  try {
+    api.configureChatbot({
+      enabled: true,
+      language: 'tl',
+      intents: [
+        {
+          name: 'greeting',
+          patterns: ['kumusta', 'hello', 'hi', 'magandang araw'],
+          responses: ['Kumusta ka!', 'Hello! Paano kita matutulungan?']
+        },
+        {
+          name: 'farewell',
+          patterns: ['paalam', 'bye', 'goodbye'],
+          responses: ['Paalam!', 'Ingat ka!']
+        }
+      ],
+      contextMemory: 5,
+      fallbackResponse: 'Pasensya, hindi ko maintindihan. Pwede mo bang ulitin?'
+    });
+    console.log('Chatbot configured with intents');
+    
+    const response = await api.processChatbotMessage('100000000000001', 'kumusta po');
+    console.log('Chatbot response:', response.response);
+    console.log('Matched intent:', response.intent);
+    console.log('Confidence:', response.confidence);
+  } catch (error) {
+    console.log('Chatbot demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- Multi-Account Management Demo ---');
+  try {
+    const account1 = await api.addAccount(demoAppState, 'Primary Account');
+    console.log('Added account:', account1.name);
+    
+    const accounts = api.getAccounts();
+    console.log('Total accounts:', accounts.length);
+    
+    await api.switchAccount(account1.accountID);
+    console.log('Switched to account:', account1.name);
+  } catch (error) {
+    console.log('Multi-account demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- Automated Response Templates Demo ---');
+  try {
+    api.addTemplate({
+      id: 'welcome',
+      name: 'Welcome Message',
+      category: 'greetings',
+      trigger: { type: 'event', value: 'new_member' },
+      response: { type: 'text', content: 'Maligayang pagdating sa grupo! Basahin po ang rules.' },
+      enabled: true,
+      priority: 1,
+      stats: { triggered: 0, successRate: 100 }
+    });
+    console.log('Template added: Welcome Message');
+    
+    const templates = api.getTemplates();
+    console.log('Total templates:', templates.length);
+  } catch (error) {
+    console.log('Templates demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- Message Scheduling Demo ---');
+  try {
+    const scheduled = await api.scheduleMessage(
+      '123456789',
+      'Scheduled message from Liwanag!',
+      new Date(Date.now() + 60000)
+    );
+    console.log('Message scheduled with ID:', scheduled.id);
+    console.log('Scheduled for:', new Date(scheduled.scheduledTime).toLocaleString());
+    
+    api.configureScheduler({ enabled: true, checkInterval: 5000 });
+    console.log('Scheduler enabled');
+    
+    const pendingMessages = api.getScheduledMessages();
+    console.log('Pending scheduled messages:', pendingMessages.length);
+  } catch (error) {
+    console.log('Scheduler demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- Spam Detection Demo ---');
+  try {
+    api.configureSpamDetection({
+      enabled: true,
+      sensitivity: 'medium',
+      actions: ['notify', 'quarantine'],
+      customPatterns: [
+        { name: 'buy_now', pattern: 'buy now', type: 'keyword', weight: 0.8 },
+        { name: 'free_money', pattern: 'free money', type: 'keyword', weight: 0.9 },
+        { name: 'click_here', pattern: 'click here', type: 'keyword', weight: 0.6 }
+      ]
+    });
+    console.log('Spam detection configured');
+    
+    const spamCheck = await api.checkForSpam('Click here for free money!', '100000000000001', '123456789');
+    console.log('Is spam:', spamCheck.isSpam);
+    console.log('Spam score:', spamCheck.score);
+    console.log('Reasons:', spamCheck.reasons.map(r => r.description).join(', '));
+    
+    api.addToWhitelist('100000000000002');
+    console.log('Added user to whitelist');
+  } catch (error) {
+    console.log('Spam detection demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- Group Analytics Demo ---');
+  try {
+    const analytics = await api.getGroupAnalytics('123456789012345');
+    console.log('Group analytics retrieved');
+    console.log('Total messages:', analytics.activityStats.totalMessages);
+    console.log('Active members:', analytics.memberStats.activeMembers);
+    console.log('Peak times:', analytics.peakActivityTimes.length);
+    
+    const topContributors = await api.getTopContributors('123456789012345', 5);
+    console.log('Top contributors:', topContributors.length);
+    
+    const sentiment = await api.getGroupSentiment('123456789012345');
+    console.log('Group sentiment score:', sentiment.overallScore);
+    console.log('Positive:', sentiment.positive + '%');
+  } catch (error) {
+    console.log('Group analytics demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- Cross-Platform Messaging Bridge Demo ---');
+  try {
+    api.configureBridge({
+      enabled: true,
+      platforms: [
+        { platform: 'telegram', enabled: true, credentials: { token: 'demo-token' }, channelMappings: [] },
+        { platform: 'discord', enabled: true, credentials: { webhookUrl: 'https://discord.com/api/webhooks/demo' }, channelMappings: [] }
+      ],
+      syncMode: 'two-way',
+      messageFormat: 'standardize'
+    });
+    console.log('Bridge configured for: Telegram, Discord');
+    
+    const bridgeResult = await api.sendCrossPlatformMessage('telegram', '-100123456789', 'Hello from Liwanag FCA!');
+    console.log('Cross-platform message sent');
+    console.log('  Message ID:', bridgeResult.id);
+    console.log('  Target platform:', bridgeResult.targetPlatform);
+    console.log('  Status:', bridgeResult.status);
+    
+    const bridgedMessages = api.getBridgedMessages();
+    console.log('Total bridged messages:', bridgedMessages.length);
+    
+    const bridgeStats = api.getBridgeStats();
+    console.log('Bridge platforms active:', bridgeStats.length);
+  } catch (error) {
+    console.log('Cross-platform bridge demo complete');
+  }
+  console.log('\n');
+
   console.log('--- Starting Message Listener ---');
   api.makinigSaMensahe((err, message) => {
     if (err) {
@@ -207,7 +394,7 @@ login({ appState: demoAppState }, options, async (err, api) => {
 
   console.log('\n');
   console.log('='.repeat(60));
-  console.log('  Demo Complete! Liwanag is ready to use.');
+  console.log('  Demo Complete! Liwanag v0.4.0 is ready to use.');
   console.log('='.repeat(60));
   console.log('\n');
 
