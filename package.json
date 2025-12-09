@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "dev": "npx ts-node src/demo.ts",
+    "dev": "ts-node src/demo.ts",
     "test": "jest",
     "prepublishOnly": "npm run build",
     "lint": "eslint src/**/*.ts",
