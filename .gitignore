@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.log
+.env
+.env.local
+cookies.json
+appstate.json
+logs/
+*.tsbuildinfo
+.npm
+coverage/
+.nyc_output/
