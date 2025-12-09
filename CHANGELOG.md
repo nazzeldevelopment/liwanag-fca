@@ -5,6 +5,143 @@ Lahat ng notable changes sa project na ito ay dokumentado dito.
 Ang format ay based sa [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 at ang project na ito ay sumusunod sa [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-12-10
+
+### 🎉 Major Feature Release - Advanced Features Implementation
+
+Ang major release na ito ay nagdadala ng lahat ng advanced features mula sa roadmap. Fully implemented na ang lahat ng planned features with complete interface, type safety, at Tagalog method names.
+
+### ✨ Added
+
+#### 📺 Live Video Streaming Support
+- **Live Stream Methods**
+  - `startLiveStream()` / `magsimulaNgLiveStream()` - Start live video broadcast
+  - `endLiveStream()` / `tapusinAngLiveStream()` - End live stream
+  - `getLiveStreams()` / `kuninAngMgaLiveStream()` - Get active streams
+  - `onLiveStreamEvent()` - Listen for stream events (viewers, comments, reactions)
+- **Features**
+  - RTMP URL and stream key generation
+  - Privacy settings (public, friends, only_me)
+  - Scheduled live streams
+  - Viewer count and peak viewer tracking
+  - Real-time comments and reactions
+
+#### 🤖 Advanced NLP Chatbot Integration
+- **Chatbot Configuration**
+  - `configureChatbot()` / `iConfigAngChatbot()` - Configure chatbot settings
+  - `enableChatbot()` / `disableChatbot()` - Toggle chatbot
+  - `addChatbotIntent()` / `removeChatbotIntent()` - Manage intents
+  - `processChatbotMessage()` - Process messages with NLP
+  - `getChatbotContext()` / `clearChatbotContext()` - Manage conversation context
+- **Features**
+  - Intent recognition with pattern matching
+  - Multi-language support (Tagalog, English, auto-detect)
+  - Context memory for conversations
+  - Fallback responses
+  - Entity extraction
+  - Support for OpenAI and Dialogflow providers
+
+#### 👥 Multi-Account Management
+- **Account Methods**
+  - `addAccount()` / `magdagdagNgAccount()` - Add new account
+  - `removeAccount()` - Remove account
+  - `switchAccount()` / `lumipatNgAccount()` - Switch active account
+  - `getAccounts()` / `kuninAngMgaAccount()` - List all accounts
+  - `getActiveAccount()` - Get current active account
+  - `getAccountStats()` - Get account statistics
+  - `configureAccountManager()` - Configure account settings
+- **Features**
+  - Up to 5 accounts (configurable)
+  - Account status tracking (active, inactive, suspended, rate_limited)
+  - Auto-rotation and load balancing options
+  - Failover support
+
+#### 📝 Automated Response Templates
+- **Template Methods**
+  - `addTemplate()` / `magdagdagNgTemplate()` - Add response template
+  - `removeTemplate()` - Remove template
+  - `updateTemplate()` - Update template
+  - `getTemplates()` / `kuninAngMgaTemplate()` - List templates
+  - `enableTemplate()` / `disableTemplate()` - Toggle templates
+  - `testTemplate()` - Test template matching
+- **Features**
+  - Trigger types: keyword, regex, intent, event, scheduled
+  - Match types: exact, contains, startsWith, endsWith
+  - Response types: text, random, sequential, conditional
+  - Scheduling support (days, time ranges)
+  - Template statistics tracking
+
+#### ⏰ Message Scheduling System
+- **Scheduler Methods**
+  - `scheduleMessage()` / `magScheduleNgMensahe()` - Schedule a message
+  - `cancelScheduledMessage()` - Cancel scheduled message
+  - `getScheduledMessages()` / `kuninAngMgaScheduledMessage()` - List scheduled messages
+  - `updateScheduledMessage()` - Update scheduled message
+  - `configureScheduler()` - Configure scheduler settings
+- **Features**
+  - One-time and recurring messages
+  - Recurrence types: once, daily, weekly, monthly, custom
+  - Timezone support
+  - Retry on failure
+  - Status tracking (pending, sent, failed, cancelled)
+
+#### 🛡️ Advanced Spam Detection
+- **Spam Detection Methods**
+  - `configureSpamDetection()` / `iConfigAngSpamDetection()` - Configure spam detection
+  - `checkForSpam()` / `suriiinKungSpam()` - Check if message is spam
+  - `addToWhitelist()` / `addToBlacklist()` - Manage lists
+  - `removeFromWhitelist()` / `removeFromBlacklist()` - Remove from lists
+  - `getSpamReports()` - Get spam reports
+  - `resolveSpamReport()` - Resolve spam report
+- **Features**
+  - Sensitivity levels: low, medium, high
+  - Actions: ignore, delete, block, report, notify, quarantine
+  - Custom pattern support (regex, keyword, fuzzy)
+  - ML-based detection option
+  - Whitelist and blacklist management
+
+#### 📊 Group Analytics and Insights
+- **Analytics Methods**
+  - `getGroupAnalytics()` / `kuninAngGroupAnalytics()` - Get group analytics
+  - `exportGroupAnalytics()` - Export to JSON or CSV
+  - `getTopContributors()` / `kuninAngTopContributors()` - Get top contributors
+  - `getGroupSentiment()` - Get sentiment analysis
+- **Metrics Tracked**
+  - Member statistics (total, active, new, left)
+  - Activity statistics (messages, photos, videos, reactions)
+  - Content statistics (top topics, emojis, links)
+  - Growth statistics (growth rate, retention, churn)
+  - Peak activity times
+  - Sentiment analysis (positive, neutral, negative)
+
+#### 🌉 Cross-Platform Messaging Bridge
+- **Bridge Methods**
+  - `configureBridge()` / `iConfigAngBridge()` - Configure bridge
+  - `addPlatform()` / `removePlatform()` - Manage platforms
+  - `getBridgeStats()` / `kuninAngBridgeStats()` - Get bridge statistics
+  - `sendCrossPlatformMessage()` / `magpadalaSaIbangPlatform()` - Send cross-platform message
+  - `getBridgedMessages()` - Get bridged messages
+- **Supported Platforms**
+  - Telegram
+  - Discord
+  - Slack
+  - WhatsApp
+  - Viber
+  - LINE
+  - Messenger
+- **Features**
+  - One-way and two-way sync modes
+  - Channel mappings
+  - Message filtering
+  - Attachment handling (forward, convert, link)
+
+### 🔧 Technical Improvements
+- Complete TypeScript type definitions for all new features
+- Enhanced error handling and validation
+- Improved analytics tracking
+- Better memory management for long-running sessions
+- Tagalog method aliases for all new features
+
 ---
 
 ## [0.3.0] - 2025-12-10
@@ -325,145 +462,6 @@ Ang unang release ng **Liwanag** - Filipino Facebook Chat API Library!
 - `tough-cookie` - Cookie management
 - `uuid` - Unique ID generation
 - `ws` - WebSocket support
-
----
-
-## [0.4.0] - 2025-12-10
-
-### 🎉 Major Feature Release - Advanced Features Implementation
-
-Ang major release na ito ay nagdadala ng lahat ng advanced features mula sa roadmap. Fully implemented na ang lahat ng planned features with complete interface, type safety, at Tagalog method names.
-
-### ✨ Added
-
-#### 📺 Live Video Streaming Support
-- **Live Stream Methods**
-  - `startLiveStream()` / `magsimulaNgLiveStream()` - Start live video broadcast
-  - `endLiveStream()` / `tapusinAngLiveStream()` - End live stream
-  - `getLiveStreams()` / `kuninAngMgaLiveStream()` - Get active streams
-  - `onLiveStreamEvent()` - Listen for stream events (viewers, comments, reactions)
-- **Features**
-  - RTMP URL and stream key generation
-  - Privacy settings (public, friends, only_me)
-  - Scheduled live streams
-  - Viewer count and peak viewer tracking
-  - Real-time comments and reactions
-
-#### 🤖 Advanced NLP Chatbot Integration
-- **Chatbot Configuration**
-  - `configureChatbot()` / `iConfigAngChatbot()` - Configure chatbot settings
-  - `enableChatbot()` / `disableChatbot()` - Toggle chatbot
-  - `addChatbotIntent()` / `removeChatbotIntent()` - Manage intents
-  - `processChatbotMessage()` - Process messages with NLP
-  - `getChatbotContext()` / `clearChatbotContext()` - Manage conversation context
-- **Features**
-  - Intent recognition with pattern matching
-  - Multi-language support (Tagalog, English, auto-detect)
-  - Context memory for conversations
-  - Fallback responses
-  - Entity extraction
-  - Support for OpenAI and Dialogflow providers
-
-#### 👥 Multi-Account Management
-- **Account Methods**
-  - `addAccount()` / `magdagdagNgAccount()` - Add new account
-  - `removeAccount()` - Remove account
-  - `switchAccount()` / `lumipatNgAccount()` - Switch active account
-  - `getAccounts()` / `kuninAngMgaAccount()` - List all accounts
-  - `getActiveAccount()` - Get current active account
-  - `getAccountStats()` - Get account statistics
-  - `configureAccountManager()` - Configure account settings
-- **Features**
-  - Up to 5 accounts (configurable)
-  - Account status tracking (active, inactive, suspended, rate_limited)
-  - Auto-rotation and load balancing options
-  - Failover support
-
-#### 📝 Automated Response Templates
-- **Template Methods**
-  - `addTemplate()` / `magdagdagNgTemplate()` - Add response template
-  - `removeTemplate()` - Remove template
-  - `updateTemplate()` - Update template
-  - `getTemplates()` / `kuninAngMgaTemplate()` - List templates
-  - `enableTemplate()` / `disableTemplate()` - Toggle templates
-  - `testTemplate()` - Test template matching
-- **Features**
-  - Trigger types: keyword, regex, intent, event, scheduled
-  - Match types: exact, contains, startsWith, endsWith
-  - Response types: text, random, sequential, conditional
-  - Scheduling support (days, time ranges)
-  - Template statistics tracking
-
-#### ⏰ Message Scheduling System
-- **Scheduler Methods**
-  - `scheduleMessage()` / `magScheduleNgMensahe()` - Schedule a message
-  - `cancelScheduledMessage()` - Cancel scheduled message
-  - `getScheduledMessages()` / `kuninAngMgaScheduledMessage()` - List scheduled messages
-  - `updateScheduledMessage()` - Update scheduled message
-  - `configureScheduler()` - Configure scheduler settings
-- **Features**
-  - One-time and recurring messages
-  - Recurrence types: once, daily, weekly, monthly, custom
-  - Timezone support
-  - Retry on failure
-  - Status tracking (pending, sent, failed, cancelled)
-
-#### 🛡️ Advanced Spam Detection
-- **Spam Detection Methods**
-  - `configureSpamDetection()` / `iConfigAngSpamDetection()` - Configure spam detection
-  - `checkForSpam()` / `suriiinKungSpam()` - Check if message is spam
-  - `addToWhitelist()` / `addToBlacklist()` - Manage lists
-  - `removeFromWhitelist()` / `removeFromBlacklist()` - Remove from lists
-  - `getSpamReports()` - Get spam reports
-  - `resolveSpamReport()` - Resolve spam report
-- **Features**
-  - Sensitivity levels: low, medium, high
-  - Actions: ignore, delete, block, report, notify, quarantine
-  - Custom pattern support (regex, keyword, fuzzy)
-  - ML-based detection option
-  - Whitelist and blacklist management
-
-#### 📊 Group Analytics and Insights
-- **Analytics Methods**
-  - `getGroupAnalytics()` / `kuninAngGroupAnalytics()` - Get group analytics
-  - `exportGroupAnalytics()` - Export to JSON or CSV
-  - `getTopContributors()` / `kuninAngTopContributors()` - Get top contributors
-  - `getGroupSentiment()` - Get sentiment analysis
-- **Metrics Tracked**
-  - Member statistics (total, active, new, left)
-  - Activity statistics (messages, photos, videos, reactions)
-  - Content statistics (top topics, emojis, links)
-  - Growth statistics (growth rate, retention, churn)
-  - Peak activity times
-  - Sentiment analysis (positive, neutral, negative)
-
-#### 🌉 Cross-Platform Messaging Bridge
-- **Bridge Methods**
-  - `configureBridge()` / `iConfigAngBridge()` - Configure bridge
-  - `addPlatform()` / `removePlatform()` - Manage platforms
-  - `getBridgeStats()` / `kuninAngBridgeStats()` - Get bridge statistics
-  - `sendCrossPlatformMessage()` / `magpadalaSaIbangPlatform()` - Send cross-platform message
-  - `getBridgedMessages()` - Get bridged messages
-- **Supported Platforms**
-  - Telegram
-  - Discord
-  - Slack
-  - WhatsApp
-  - Viber
-  - LINE
-  - Messenger
-- **Features**
-  - One-way and two-way sync modes
-  - Channel mappings
-  - Message filtering
-  - Attachment handling (forward, convert, link)
-
-### 🔧 Technical Improvements
-- Complete TypeScript type definitions for all new features
-- Enhanced error handling and validation
-- Improved analytics tracking
-- Better memory management for long-running sessions
-- Tagalog method aliases for all new features
 
 ---
 
