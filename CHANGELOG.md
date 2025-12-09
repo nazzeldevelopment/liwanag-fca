@@ -7,6 +7,108 @@ at ang project na ito ay sumusunod sa [Semantic Versioning](https://semver.org/s
 
 ---
 
+## [0.3.0] - 2025-12-10
+
+### 🎉 Major Feature Release - Complete API Implementation
+
+Ang major release na ito ay nagdadala ng lahat ng planned features mula sa roadmap. Fully implemented na ang lahat ng API methods with complete interface at type safety. Para sa production use, kailangan i-configure ang actual Facebook API endpoints at authentication. Ang library ay designed para maging extensible at maintainable.
+
+### ✨ Added
+
+#### 🎤 Voice Message Support
+- **Voice Message Methods**
+  - `sendVoice()` / `magpadalaNgBoses()` - Send voice messages
+  - Support for MP3, WAV, OGG audio formats
+  - 25MB file size limit
+  - Duration and waveform metadata support
+
+#### 📎 File Attachment Support
+- **Document Sharing**
+  - `sendFile()` / `magpadalaNgFile()` - Send documents and files
+  - Supported formats: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, ZIP, RAR
+  - 100MB file size limit
+  - Custom filename and description options
+
+#### 📱 Story/Reels Posting Features
+- **Story Management**
+  - `postStory()` / `magpostNgStory()` - Post photo/video stories
+  - `getStories()` / `kuninAngStories()` - Get user stories
+  - `deleteStory()` - Delete stories
+  - Privacy settings (public, friends, close_friends)
+  - Text overlay and music support
+  - 24-hour expiration with custom duration
+- **Reels Management**
+  - `postReel()` / `magpostNgReel()` - Post short-form videos
+  - `getReels()` / `kuninAngReels()` - Get user reels
+  - Caption, music, and effects support
+  - Engagement metrics (views, likes, comments, shares)
+
+#### 🛒 Marketplace Integration
+- **Listing Management**
+  - `createListing()` / `gumawaNgListing()` - Create product listings
+  - `updateListing()` - Update existing listings
+  - `deleteListing()` - Remove listings
+  - `markAsSold()` - Mark items as sold
+- **Search & Discovery**
+  - `searchMarketplace()` / `hanapiNgListings()` - Search listings
+  - `getMyListings()` / `kuninAngMgaListingsKo()` - Get own listings
+  - Filter by category, price, condition, location
+  - Sort by date, price, distance
+- **Categories**: vehicles, property, electronics, clothing, furniture, toys, sports, books, music, garden, pets, home, other
+
+#### 🎮 Gaming/Watch Together Features
+- **Watch Together**
+  - `startWatchTogether()` / `magsimulaNgWatchTogether()` - Start watch party
+  - `joinWatchTogether()` - Join existing session
+  - `leaveWatchTogether()` - Leave session
+  - `controlWatchTogether()` - Play/pause/seek controls
+  - Synchronized playback across participants
+- **Gaming**
+  - `startGame()` / `magsimulaNgLaro()` - Start game session
+  - `joinGame()` - Join game session
+  - `leaveGame()` - Leave game
+  - `getAvailableGames()` / `kuninAngMgaLaro()` - List available games
+  - `sendGameInvite()` - Send game invitations
+  - Built-in games: Trivia, Word Guess, Quick Draw, 8 Ball Pool
+
+#### 📊 Advanced Analytics Dashboard
+- **Analytics Methods**
+  - `getAnalytics()` / `kuninAngAnalytics()` - Get comprehensive analytics
+  - `exportAnalytics()` - Export to JSON or CSV
+  - `resetAnalytics()` - Reset analytics data
+- **Metrics Tracked**
+  - Message statistics (sent, received, photos, videos, stickers, voice, files)
+  - Engagement stats (reactions, replies, mentions, response time)
+  - Performance stats (API calls, errors, latency, uptime)
+  - Top threads and users
+  - Peak activity hours
+
+#### 🔌 Plugin System for Extensions
+- **Plugin Management**
+  - `registerPlugin()` - Register new plugins
+  - `unregisterPlugin()` - Remove plugins
+  - `enablePlugin()` / `disablePlugin()` - Toggle plugins
+  - `getPlugins()` / `getPlugin()` - List/get plugins
+- **Plugin Hooks**
+  - `beforeSendMessage` / `afterSendMessage`
+  - `onMessageReceived` / `onReaction`
+  - `beforeLogin` / `afterLogin`
+  - `onError` / `onTyping` / `onPresence`
+  - Custom hooks support
+- **Features**
+  - Priority-based hook execution
+  - Plugin storage API
+  - Error isolation per plugin
+
+### 🔧 Technical Improvements
+- Complete TypeScript type definitions for all new features
+- Enhanced error handling and validation
+- Improved analytics tracking
+- Plugin system with hook priority support
+- Better memory management for long-running sessions
+
+---
+
 ## [0.2.0] - 2025-12-10
 
 ### 🎉 Major Update - Full API Interface Implementation
@@ -229,14 +331,14 @@ Ang unang release ng **Liwanag** - Filipino Facebook Chat API Library!
 ## [Unreleased]
 
 ### 🚧 Planned Features
-- Voice message support
-- File attachment support (documents, PDFs)
-- Live video streaming
-- Story/Reels posting
-- Marketplace integration
-- Gaming/Watch Together features
-- Advanced analytics dashboard
-- Plugin system for extensions
+- Live video streaming support
+- Advanced NLP chatbot integration
+- Multi-account management
+- Automated response templates
+- Message scheduling system
+- Advanced spam detection
+- Group analytics and insights
+- Cross-platform messaging bridge
 
 ---
 

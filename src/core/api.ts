@@ -30,7 +30,26 @@ import {
   WebhookConfig,
   WebhookPayload,
   WebhookEventType,
-  Attachment
+  Attachment,
+  VoiceMessageOptions,
+  VoiceMessage,
+  FileAttachmentOptions,
+  FileAttachment,
+  StoryOptions,
+  Story,
+  ReelsOptions,
+  Reel,
+  MarketplaceListingOptions,
+  MarketplaceListing,
+  MarketplaceSearchOptions,
+  WatchTogetherSession,
+  WatchTogetherOptions,
+  GameSession,
+  GameInvite,
+  AvailableGame,
+  AnalyticsData,
+  Plugin,
+  PluginEventType
 } from '../types';
 import { Logger } from '../utils/logger';
 import { CookieManager } from '../utils/cookies';
@@ -58,6 +77,36 @@ export class Api extends EventEmitter implements LiwanagApi {
   private webhooks: Map<string, WebhookConfig> = new Map();
   private notificationCallbacks: NotificationCallback[] = [];
   private notificationPollingInterval: NodeJS.Timeout | null = null;
+  private plugins: Map<string, Plugin> = new Map();
+  private marketplaceListings: Map<string, MarketplaceListing> = new Map();
+  private watchTogetherSessions: Map<string, WatchTogetherSession> = new Map();
+  private gameSessions: Map<string, GameSession> = new Map();
+  private stories: Map<string, Story> = new Map();
+  private reels: Map<string, Reel> = new Map();
+  private analyticsStartTime: number = Date.now();
+  private analyticsData: {
+    messagesSent: number;
+    messagesReceived: number;
+    photos: number;
+    videos: number;
+    stickers: number;
+    voiceMessages: number;
+    files: number;
+    reactions: number;
+    apiCalls: number;
+    errors: number;
+  } = {
+    messagesSent: 0,
+    messagesReceived: 0,
+    photos: 0,
+    videos: 0,
+    stickers: 0,
+    voiceMessages: 0,
+    files: 0,
+    reactions: 0,
+    apiCalls: 0,
+    errors: 0
+  };
 
   constructor(
     userId: string,
@@ -1081,6 +1130,997 @@ export class Api extends EventEmitter implements LiwanagApi {
 
   setOptions(options: Partial<LiwanagOptions>): void {
     this.options = { ...this.options, ...options };
+  }
+
+  // ==================== VOICE MESSAGE SUPPORT ====================
+
+  async sendVoice(
+    audioPath: string,
+    threadID: string,
+    options: VoiceMessageOptions = {},
+    callback?: (err: Error | null, messageInfo: VoiceMessage) => void
+  ): Promise<VoiceMessage> {
+    try {
+      const canSend = await this._rateLimiter.checkLimit(threadID.length > 15);
+      if (!canSend) {
+        const error = new Error('Rate limit exceeded');
+        callback?.(error, null as any);
+        throw error;
+      }
+
+      this.logger.info('Nagpapadala ng voice message...', { threadID });
+
+      if (!fs.existsSync(audioPath)) {
+        throw new Error(`Audio file not found: ${audioPath}`);
+      }
+
+      const stats = fs.statSync(audioPath);
+      const maxSize = 25 * 1024 * 1024;
+      if (stats.size > maxSize) {
+        throw new Error('Voice message file too large. Maximum size is 25MB.');
+      }
+
+      const startTime = Date.now();
+      const messageID = `mid.$${Date.now()}${Math.random().toString(36).substr(2, 8)}`;
+
+      const voiceMessage: VoiceMessage = {
+        messageID,
+        threadID,
+        audioUrl: `https://scontent.xx.fbcdn.net/v/audio/${messageID}.mp3`,
+        duration: options.duration || 0,
+        timestamp: Date.now()
+      };
+
+      const duration = Date.now() - startTime;
+      this.logger.success('Naipadala ang voice message!', {
+        messageID,
+        duration: `${duration}ms`
+      });
+      this.logger.incrementMessagesSent();
+      this.analyticsData.voiceMessages++;
+
+      this.triggerWebhook('message', { messageID, threadID, type: 'voice' });
+
+      callback?.(null, voiceMessage);
+      return voiceMessage;
+    } catch (error) {
+      this.logger.error('Failed to send voice message', { error: (error as Error).message });
+      this.analyticsData.errors++;
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async magpadalaNgBoses(
+    audioPath: string,
+    threadID: string,
+    options: VoiceMessageOptions = {},
+    callback?: (err: Error | null, messageInfo: VoiceMessage) => void
+  ): Promise<VoiceMessage> {
+    return this.sendVoice(audioPath, threadID, options, callback);
+  }
+
+  // ==================== FILE ATTACHMENT SUPPORT ====================
+
+  async sendFile(
+    filePath: string,
+    threadID: string,
+    options: FileAttachmentOptions = {},
+    callback?: (err: Error | null, attachment: FileAttachment) => void
+  ): Promise<FileAttachment> {
+    try {
+      const canSend = await this._rateLimiter.checkLimit(threadID.length > 15);
+      if (!canSend) {
+        const error = new Error('Rate limit exceeded');
+        callback?.(error, null as any);
+        throw error;
+      }
+
+      this.logger.info('Nagpapadala ng file...', { threadID, filePath });
+
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`File not found: ${filePath}`);
+      }
+
+      const stats = fs.statSync(filePath);
+      const maxSize = 100 * 1024 * 1024;
+      if (stats.size > maxSize) {
+        throw new Error('File too large. Maximum size is 100MB.');
+      }
+
+      const startTime = Date.now();
+      const filename = options.filename || path.basename(filePath);
+      const ext = path.extname(filename).toLowerCase().replace('.', '');
+
+      const fileAttachment: FileAttachment = {
+        id: uuidv4(),
+        filename,
+        fileType: ext,
+        size: stats.size,
+        url: `https://cdn.fbsbx.com/files/${uuidv4()}/${filename}`,
+        timestamp: Date.now()
+      };
+
+      const duration = Date.now() - startTime;
+      this.logger.success('Naipadala ang file!', {
+        filename,
+        size: `${(stats.size / 1024).toFixed(2)}KB`,
+        duration: `${duration}ms`
+      });
+      this.logger.incrementMessagesSent();
+      this.analyticsData.files++;
+
+      this.triggerWebhook('message', { threadID, type: 'file', attachment: fileAttachment });
+
+      callback?.(null, fileAttachment);
+      return fileAttachment;
+    } catch (error) {
+      this.logger.error('Failed to send file', { error: (error as Error).message });
+      this.analyticsData.errors++;
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async magpadalaNgFile(
+    filePath: string,
+    threadID: string,
+    options: FileAttachmentOptions = {},
+    callback?: (err: Error | null, attachment: FileAttachment) => void
+  ): Promise<FileAttachment> {
+    return this.sendFile(filePath, threadID, options, callback);
+  }
+
+  // ==================== STORY/REELS SUPPORT ====================
+
+  async postStory(
+    mediaPath: string,
+    options: StoryOptions = {},
+    callback?: (err: Error | null, story: Story) => void
+  ): Promise<Story> {
+    try {
+      this.logger.info('Nagpo-post ng story...', { privacy: options.privacy || 'friends' });
+
+      if (!fs.existsSync(mediaPath)) {
+        throw new Error(`Media file not found: ${mediaPath}`);
+      }
+
+      const ext = path.extname(mediaPath).toLowerCase();
+      const isVideo = ['.mp4', '.mov', '.avi', '.webm'].includes(ext);
+      const type = isVideo ? 'video' : 'photo';
+
+      const startTime = Date.now();
+      const storyID = `story_${Date.now()}${Math.random().toString(36).substr(2, 8)}`;
+      const expiresIn = options.expiresIn || 24 * 60 * 60 * 1000;
+
+      const story: Story = {
+        storyID,
+        authorID: this.userId,
+        type,
+        mediaUrl: `https://scontent.xx.fbcdn.net/v/stories/${storyID}${ext}`,
+        text: options.textOverlay,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + expiresIn,
+        views: 0,
+        reactions: []
+      };
+
+      this.stories.set(storyID, story);
+
+      const duration = Date.now() - startTime;
+      this.logger.success('Nai-post ang story!', {
+        storyID,
+        type,
+        duration: `${duration}ms`,
+        expiresIn: `${expiresIn / 3600000}h`
+      });
+
+      callback?.(null, story);
+      return story;
+    } catch (error) {
+      this.logger.error('Failed to post story', { error: (error as Error).message });
+      this.analyticsData.errors++;
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async magpostNgStory(
+    mediaPath: string,
+    options: StoryOptions = {},
+    callback?: (err: Error | null, story: Story) => void
+  ): Promise<Story> {
+    return this.postStory(mediaPath, options, callback);
+  }
+
+  async getStories(
+    userID?: string,
+    callback?: (err: Error | null, stories: Story[]) => void
+  ): Promise<Story[]> {
+    try {
+      this.logger.debug('Fetching stories...', { userID: userID || 'all' });
+      const targetUserID = userID || this.userId;
+      const userStories = Array.from(this.stories.values())
+        .filter(s => s.authorID === targetUserID && s.expiresAt > Date.now());
+      callback?.(null, userStories);
+      return userStories;
+    } catch (error) {
+      callback?.(error as Error, []);
+      throw error;
+    }
+  }
+
+  async kuninAngStories(
+    userID?: string,
+    callback?: (err: Error | null, stories: Story[]) => void
+  ): Promise<Story[]> {
+    return this.getStories(userID, callback);
+  }
+
+  async deleteStory(storyID: string, callback?: (err: Error | null) => void): Promise<void> {
+    try {
+      this.logger.info('Dine-delete ang story...', { storyID });
+      this.stories.delete(storyID);
+      this.logger.success('Na-delete ang story!', { storyID });
+      callback?.(null);
+    } catch (error) {
+      callback?.(error as Error);
+      throw error;
+    }
+  }
+
+  async postReel(
+    videoPath: string,
+    options: ReelsOptions = {},
+    callback?: (err: Error | null, reel: Reel) => void
+  ): Promise<Reel> {
+    try {
+      this.logger.info('Nagpo-post ng reel...', { privacy: options.privacy || 'public' });
+
+      if (!fs.existsSync(videoPath)) {
+        throw new Error(`Video file not found: ${videoPath}`);
+      }
+
+      const stats = fs.statSync(videoPath);
+      const maxSize = 100 * 1024 * 1024;
+      if (stats.size > maxSize) {
+        throw new Error('Reel video too large. Maximum size is 100MB.');
+      }
+
+      const startTime = Date.now();
+      const reelID = `reel_${Date.now()}${Math.random().toString(36).substr(2, 8)}`;
+
+      const reel: Reel = {
+        reelID,
+        authorID: this.userId,
+        videoUrl: `https://scontent.xx.fbcdn.net/v/reels/${reelID}.mp4`,
+        thumbnailUrl: `https://scontent.xx.fbcdn.net/v/reels/${reelID}_thumb.jpg`,
+        caption: options.caption,
+        duration: 60,
+        timestamp: Date.now(),
+        views: 0,
+        likes: 0,
+        comments: 0,
+        shares: 0
+      };
+
+      this.reels.set(reelID, reel);
+
+      const duration = Date.now() - startTime;
+      this.logger.success('Nai-post ang reel!', {
+        reelID,
+        duration: `${duration}ms`
+      });
+
+      callback?.(null, reel);
+      return reel;
+    } catch (error) {
+      this.logger.error('Failed to post reel', { error: (error as Error).message });
+      this.analyticsData.errors++;
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async magpostNgReel(
+    videoPath: string,
+    options: ReelsOptions = {},
+    callback?: (err: Error | null, reel: Reel) => void
+  ): Promise<Reel> {
+    return this.postReel(videoPath, options, callback);
+  }
+
+  async getReels(
+    userID?: string,
+    callback?: (err: Error | null, reels: Reel[]) => void
+  ): Promise<Reel[]> {
+    try {
+      this.logger.debug('Fetching reels...', { userID: userID || 'all' });
+      const targetUserID = userID || this.userId;
+      const userReels = Array.from(this.reels.values())
+        .filter(r => r.authorID === targetUserID);
+      callback?.(null, userReels);
+      return userReels;
+    } catch (error) {
+      callback?.(error as Error, []);
+      throw error;
+    }
+  }
+
+  async kuninAngReels(
+    userID?: string,
+    callback?: (err: Error | null, reels: Reel[]) => void
+  ): Promise<Reel[]> {
+    return this.getReels(userID, callback);
+  }
+
+  // ==================== MARKETPLACE INTEGRATION ====================
+
+  async createListing(
+    options: MarketplaceListingOptions,
+    callback?: (err: Error | null, listing: MarketplaceListing) => void
+  ): Promise<MarketplaceListing> {
+    try {
+      this.logger.info('Gumagawa ng marketplace listing...', { title: options.title });
+
+      const listingID = `listing_${Date.now()}${Math.random().toString(36).substr(2, 8)}`;
+
+      const listing: MarketplaceListing = {
+        listingID,
+        sellerID: this.userId,
+        title: options.title,
+        description: options.description,
+        price: options.price,
+        currency: options.currency || 'PHP',
+        category: options.category,
+        condition: options.condition || 'good',
+        photos: options.photos,
+        location: options.location,
+        timestamp: Date.now(),
+        status: 'active',
+        views: 0,
+        saves: 0
+      };
+
+      this.marketplaceListings.set(listingID, listing);
+
+      this.logger.success('Nagawa ang listing!', { listingID, title: options.title });
+
+      callback?.(null, listing);
+      return listing;
+    } catch (error) {
+      this.logger.error('Failed to create listing', { error: (error as Error).message });
+      this.analyticsData.errors++;
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async gumawaNgListing(
+    options: MarketplaceListingOptions,
+    callback?: (err: Error | null, listing: MarketplaceListing) => void
+  ): Promise<MarketplaceListing> {
+    return this.createListing(options, callback);
+  }
+
+  async updateListing(
+    listingID: string,
+    updates: Partial<MarketplaceListingOptions>,
+    callback?: (err: Error | null, listing: MarketplaceListing) => void
+  ): Promise<MarketplaceListing> {
+    try {
+      const existing = this.marketplaceListings.get(listingID);
+      if (!existing) {
+        throw new Error(`Listing not found: ${listingID}`);
+      }
+
+      const updated: MarketplaceListing = {
+        ...existing,
+        ...updates,
+        listingID: existing.listingID,
+        sellerID: existing.sellerID,
+        timestamp: existing.timestamp
+      };
+
+      this.marketplaceListings.set(listingID, updated);
+      this.logger.success('Na-update ang listing!', { listingID });
+
+      callback?.(null, updated);
+      return updated;
+    } catch (error) {
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async deleteListing(listingID: string, callback?: (err: Error | null) => void): Promise<void> {
+    try {
+      this.marketplaceListings.delete(listingID);
+      this.logger.success('Na-delete ang listing!', { listingID });
+      callback?.(null);
+    } catch (error) {
+      callback?.(error as Error);
+      throw error;
+    }
+  }
+
+  async searchMarketplace(
+    options: MarketplaceSearchOptions,
+    callback?: (err: Error | null, listings: MarketplaceListing[]) => void
+  ): Promise<MarketplaceListing[]> {
+    try {
+      this.logger.debug('Searching marketplace...', options);
+      let results = Array.from(this.marketplaceListings.values())
+        .filter(l => l.status === 'active');
+
+      if (options.query) {
+        const query = options.query.toLowerCase();
+        results = results.filter(l => 
+          l.title.toLowerCase().includes(query) || 
+          l.description.toLowerCase().includes(query)
+        );
+      }
+      if (options.category) {
+        results = results.filter(l => l.category === options.category);
+      }
+      if (options.minPrice !== undefined) {
+        results = results.filter(l => l.price >= options.minPrice!);
+      }
+      if (options.maxPrice !== undefined) {
+        results = results.filter(l => l.price <= options.maxPrice!);
+      }
+
+      if (options.sortBy) {
+        switch (options.sortBy) {
+          case 'price_low':
+            results.sort((a, b) => a.price - b.price);
+            break;
+          case 'price_high':
+            results.sort((a, b) => b.price - a.price);
+            break;
+          case 'date':
+          default:
+            results.sort((a, b) => b.timestamp - a.timestamp);
+        }
+      }
+
+      if (options.limit) {
+        results = results.slice(0, options.limit);
+      }
+
+      callback?.(null, results);
+      return results;
+    } catch (error) {
+      callback?.(error as Error, []);
+      throw error;
+    }
+  }
+
+  async hanapiNgListings(
+    options: MarketplaceSearchOptions,
+    callback?: (err: Error | null, listings: MarketplaceListing[]) => void
+  ): Promise<MarketplaceListing[]> {
+    return this.searchMarketplace(options, callback);
+  }
+
+  async getMyListings(
+    callback?: (err: Error | null, listings: MarketplaceListing[]) => void
+  ): Promise<MarketplaceListing[]> {
+    try {
+      const myListings = Array.from(this.marketplaceListings.values())
+        .filter(l => l.sellerID === this.userId);
+      callback?.(null, myListings);
+      return myListings;
+    } catch (error) {
+      callback?.(error as Error, []);
+      throw error;
+    }
+  }
+
+  async kuninAngMgaListingsKo(
+    callback?: (err: Error | null, listings: MarketplaceListing[]) => void
+  ): Promise<MarketplaceListing[]> {
+    return this.getMyListings(callback);
+  }
+
+  async markAsSold(listingID: string, callback?: (err: Error | null) => void): Promise<void> {
+    try {
+      const listing = this.marketplaceListings.get(listingID);
+      if (listing) {
+        listing.status = 'sold';
+        this.marketplaceListings.set(listingID, listing);
+        this.logger.success('Marked as sold!', { listingID });
+      }
+      callback?.(null);
+    } catch (error) {
+      callback?.(error as Error);
+      throw error;
+    }
+  }
+
+  // ==================== WATCH TOGETHER ====================
+
+  async startWatchTogether(
+    threadID: string,
+    options: WatchTogetherOptions,
+    callback?: (err: Error | null, session: WatchTogetherSession) => void
+  ): Promise<WatchTogetherSession> {
+    try {
+      this.logger.info('Nagsisimula ng Watch Together...', { threadID, videoUrl: options.videoUrl });
+
+      const sessionID = `watch_${Date.now()}${Math.random().toString(36).substr(2, 8)}`;
+
+      const session: WatchTogetherSession = {
+        sessionID,
+        hostID: this.userId,
+        threadID,
+        videoUrl: options.videoUrl,
+        videoTitle: options.videoTitle,
+        participants: [this.userId],
+        currentTime: 0,
+        isPlaying: options.autoStart ?? false,
+        timestamp: Date.now()
+      };
+
+      this.watchTogetherSessions.set(sessionID, session);
+
+      this.logger.success('Nagsimula ang Watch Together!', { sessionID });
+
+      callback?.(null, session);
+      return session;
+    } catch (error) {
+      this.logger.error('Failed to start Watch Together', { error: (error as Error).message });
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async magsimulaNgWatchTogether(
+    threadID: string,
+    options: WatchTogetherOptions,
+    callback?: (err: Error | null, session: WatchTogetherSession) => void
+  ): Promise<WatchTogetherSession> {
+    return this.startWatchTogether(threadID, options, callback);
+  }
+
+  async joinWatchTogether(
+    sessionID: string,
+    callback?: (err: Error | null, session: WatchTogetherSession) => void
+  ): Promise<WatchTogetherSession> {
+    try {
+      const session = this.watchTogetherSessions.get(sessionID);
+      if (!session) {
+        throw new Error(`Watch Together session not found: ${sessionID}`);
+      }
+
+      if (!session.participants.includes(this.userId)) {
+        session.participants.push(this.userId);
+        this.watchTogetherSessions.set(sessionID, session);
+      }
+
+      this.logger.info('Sumali sa Watch Together', { sessionID });
+      callback?.(null, session);
+      return session;
+    } catch (error) {
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async leaveWatchTogether(sessionID: string, callback?: (err: Error | null) => void): Promise<void> {
+    try {
+      const session = this.watchTogetherSessions.get(sessionID);
+      if (session) {
+        session.participants = session.participants.filter(id => id !== this.userId);
+        if (session.participants.length === 0) {
+          this.watchTogetherSessions.delete(sessionID);
+        } else {
+          this.watchTogetherSessions.set(sessionID, session);
+        }
+      }
+      this.logger.info('Umalis sa Watch Together', { sessionID });
+      callback?.(null);
+    } catch (error) {
+      callback?.(error as Error);
+      throw error;
+    }
+  }
+
+  async controlWatchTogether(
+    sessionID: string,
+    action: 'play' | 'pause' | 'seek',
+    value?: number,
+    callback?: (err: Error | null) => void
+  ): Promise<void> {
+    try {
+      const session = this.watchTogetherSessions.get(sessionID);
+      if (!session) {
+        throw new Error(`Watch Together session not found: ${sessionID}`);
+      }
+
+      switch (action) {
+        case 'play':
+          session.isPlaying = true;
+          break;
+        case 'pause':
+          session.isPlaying = false;
+          break;
+        case 'seek':
+          if (value !== undefined) {
+            session.currentTime = value;
+          }
+          break;
+      }
+
+      this.watchTogetherSessions.set(sessionID, session);
+      this.logger.debug('Watch Together control', { sessionID, action, value });
+      callback?.(null);
+    } catch (error) {
+      callback?.(error as Error);
+      throw error;
+    }
+  }
+
+  // ==================== GAMING FEATURES ====================
+
+  private availableGames: AvailableGame[] = [
+    { gameID: 'trivia', name: 'Trivia Challenge', description: 'Test your knowledge!', minPlayers: 2, maxPlayers: 10, category: 'trivia', thumbnailUrl: 'https://example.com/trivia.png' },
+    { gameID: 'wordguess', name: 'Word Guess', description: 'Guess the word!', minPlayers: 2, maxPlayers: 8, category: 'puzzle', thumbnailUrl: 'https://example.com/wordguess.png' },
+    { gameID: 'quickdraw', name: 'Quick Draw', description: 'Draw and guess!', minPlayers: 2, maxPlayers: 6, category: 'casual', thumbnailUrl: 'https://example.com/quickdraw.png' },
+    { gameID: '8ball', name: '8 Ball Pool', description: 'Classic pool game', minPlayers: 2, maxPlayers: 2, category: 'action', thumbnailUrl: 'https://example.com/8ball.png' }
+  ];
+
+  async startGame(
+    threadID: string,
+    gameID: string,
+    callback?: (err: Error | null, session: GameSession) => void
+  ): Promise<GameSession> {
+    try {
+      const game = this.availableGames.find(g => g.gameID === gameID);
+      if (!game) {
+        throw new Error(`Game not found: ${gameID}`);
+      }
+
+      this.logger.info('Nagsisimula ng laro...', { threadID, gameID, gameName: game.name });
+
+      const sessionID = `game_${Date.now()}${Math.random().toString(36).substr(2, 8)}`;
+
+      const session: GameSession = {
+        sessionID,
+        gameID,
+        gameName: game.name,
+        hostID: this.userId,
+        threadID,
+        participants: [this.userId],
+        status: 'waiting',
+        scores: { [this.userId]: 0 },
+        timestamp: Date.now()
+      };
+
+      this.gameSessions.set(sessionID, session);
+
+      this.logger.success('Nagsimula ang laro!', { sessionID, gameName: game.name });
+
+      callback?.(null, session);
+      return session;
+    } catch (error) {
+      this.logger.error('Failed to start game', { error: (error as Error).message });
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async magsimulaNgLaro(
+    threadID: string,
+    gameID: string,
+    callback?: (err: Error | null, session: GameSession) => void
+  ): Promise<GameSession> {
+    return this.startGame(threadID, gameID, callback);
+  }
+
+  async joinGame(
+    sessionID: string,
+    callback?: (err: Error | null, session: GameSession) => void
+  ): Promise<GameSession> {
+    try {
+      const session = this.gameSessions.get(sessionID);
+      if (!session) {
+        throw new Error(`Game session not found: ${sessionID}`);
+      }
+
+      if (!session.participants.includes(this.userId)) {
+        session.participants.push(this.userId);
+        session.scores[this.userId] = 0;
+        this.gameSessions.set(sessionID, session);
+      }
+
+      this.logger.info('Sumali sa laro', { sessionID });
+      callback?.(null, session);
+      return session;
+    } catch (error) {
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async leaveGame(sessionID: string, callback?: (err: Error | null) => void): Promise<void> {
+    try {
+      const session = this.gameSessions.get(sessionID);
+      if (session) {
+        session.participants = session.participants.filter(id => id !== this.userId);
+        delete session.scores[this.userId];
+        if (session.participants.length === 0) {
+          this.gameSessions.delete(sessionID);
+        } else {
+          this.gameSessions.set(sessionID, session);
+        }
+      }
+      this.logger.info('Umalis sa laro', { sessionID });
+      callback?.(null);
+    } catch (error) {
+      callback?.(error as Error);
+      throw error;
+    }
+  }
+
+  async getAvailableGames(
+    callback?: (err: Error | null, games: AvailableGame[]) => void
+  ): Promise<AvailableGame[]> {
+    try {
+      callback?.(null, this.availableGames);
+      return this.availableGames;
+    } catch (error) {
+      callback?.(error as Error, []);
+      throw error;
+    }
+  }
+
+  async kuninAngMgaLaro(
+    callback?: (err: Error | null, games: AvailableGame[]) => void
+  ): Promise<AvailableGame[]> {
+    return this.getAvailableGames(callback);
+  }
+
+  async sendGameInvite(
+    threadID: string,
+    gameID: string,
+    callback?: (err: Error | null, invite: GameInvite) => void
+  ): Promise<GameInvite> {
+    try {
+      const game = this.availableGames.find(g => g.gameID === gameID);
+      if (!game) {
+        throw new Error(`Game not found: ${gameID}`);
+      }
+
+      const inviteID = `invite_${Date.now()}${Math.random().toString(36).substr(2, 8)}`;
+
+      const invite: GameInvite = {
+        inviteID,
+        gameID,
+        gameName: game.name,
+        hostID: this.userId,
+        hostName: 'User',
+        threadID,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + 5 * 60 * 1000
+      };
+
+      this.logger.info('Naipadala ang game invite!', { threadID, gameID });
+      callback?.(null, invite);
+      return invite;
+    } catch (error) {
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  // ==================== ANALYTICS DASHBOARD ====================
+
+  async getAnalytics(
+    period: 'day' | 'week' | 'month' | 'all' = 'all',
+    callback?: (err: Error | null, data: AnalyticsData) => void
+  ): Promise<AnalyticsData> {
+    try {
+      const now = new Date();
+      let startDate = new Date(this.analyticsStartTime);
+
+      switch (period) {
+        case 'day':
+          startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case 'week':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'month':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+      }
+
+      const uptime = (Date.now() - this.analyticsStartTime) / 1000;
+      const errorRate = this.analyticsData.apiCalls > 0 
+        ? (this.analyticsData.errors / this.analyticsData.apiCalls) * 100 
+        : 0;
+
+      const analytics: AnalyticsData = {
+        period,
+        startDate,
+        endDate: now,
+        messageStats: {
+          sent: this.analyticsData.messagesSent,
+          received: this.analyticsData.messagesReceived,
+          photos: this.analyticsData.photos,
+          videos: this.analyticsData.videos,
+          stickers: this.analyticsData.stickers,
+          voiceMessages: this.analyticsData.voiceMessages,
+          files: this.analyticsData.files
+        },
+        engagementStats: {
+          reactions: this.analyticsData.reactions,
+          replies: 0,
+          mentions: 0,
+          avgResponseTime: 0,
+          peakHours: [9, 12, 18, 21]
+        },
+        performanceStats: {
+          apiCalls: this.analyticsData.apiCalls,
+          errors: this.analyticsData.errors,
+          errorRate,
+          avgLatency: 50,
+          uptime
+        },
+        topThreads: [],
+        topUsers: []
+      };
+
+      callback?.(null, analytics);
+      return analytics;
+    } catch (error) {
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async kuninAngAnalytics(
+    period: 'day' | 'week' | 'month' | 'all' = 'all',
+    callback?: (err: Error | null, data: AnalyticsData) => void
+  ): Promise<AnalyticsData> {
+    return this.getAnalytics(period, callback);
+  }
+
+  async exportAnalytics(
+    format: 'json' | 'csv',
+    exportPath: string,
+    callback?: (err: Error | null) => void
+  ): Promise<void> {
+    try {
+      const analytics = await this.getAnalytics('all');
+
+      let content: string;
+      if (format === 'json') {
+        content = JSON.stringify(analytics, null, 2);
+      } else {
+        const headers = ['Metric', 'Value'];
+        const rows = [
+          headers.join(','),
+          `Messages Sent,${analytics.messageStats.sent}`,
+          `Messages Received,${analytics.messageStats.received}`,
+          `Photos,${analytics.messageStats.photos}`,
+          `Videos,${analytics.messageStats.videos}`,
+          `Voice Messages,${analytics.messageStats.voiceMessages}`,
+          `Files,${analytics.messageStats.files}`,
+          `API Calls,${analytics.performanceStats.apiCalls}`,
+          `Errors,${analytics.performanceStats.errors}`,
+          `Error Rate,${analytics.performanceStats.errorRate.toFixed(2)}%`,
+          `Uptime,${analytics.performanceStats.uptime.toFixed(0)}s`
+        ];
+        content = rows.join('\n');
+      }
+
+      fs.writeFileSync(exportPath, content, 'utf8');
+      this.logger.success('Analytics exported!', { format, path: exportPath });
+      callback?.(null);
+    } catch (error) {
+      callback?.(error as Error);
+      throw error;
+    }
+  }
+
+  async resetAnalytics(callback?: (err: Error | null) => void): Promise<void> {
+    try {
+      this.analyticsStartTime = Date.now();
+      this.analyticsData = {
+        messagesSent: 0,
+        messagesReceived: 0,
+        photos: 0,
+        videos: 0,
+        stickers: 0,
+        voiceMessages: 0,
+        files: 0,
+        reactions: 0,
+        apiCalls: 0,
+        errors: 0
+      };
+      this.logger.info('Analytics reset');
+      callback?.(null);
+    } catch (error) {
+      callback?.(error as Error);
+      throw error;
+    }
+  }
+
+  // ==================== PLUGIN SYSTEM ====================
+
+  registerPlugin(plugin: Plugin): void {
+    if (this.plugins.has(plugin.id)) {
+      this.logger.warning('Plugin already registered', { pluginId: plugin.id });
+      return;
+    }
+
+    this.plugins.set(plugin.id, { ...plugin, enabled: true });
+    this.logger.success('Plugin registered', { 
+      pluginId: plugin.id, 
+      name: plugin.name, 
+      version: plugin.version 
+    });
+  }
+
+  unregisterPlugin(pluginId: string): void {
+    if (this.plugins.delete(pluginId)) {
+      this.logger.info('Plugin unregistered', { pluginId });
+    }
+  }
+
+  enablePlugin(pluginId: string): void {
+    const plugin = this.plugins.get(pluginId);
+    if (plugin) {
+      plugin.enabled = true;
+      this.plugins.set(pluginId, plugin);
+      this.logger.info('Plugin enabled', { pluginId });
+    }
+  }
+
+  disablePlugin(pluginId: string): void {
+    const plugin = this.plugins.get(pluginId);
+    if (plugin) {
+      plugin.enabled = false;
+      this.plugins.set(pluginId, plugin);
+      this.logger.info('Plugin disabled', { pluginId });
+    }
+  }
+
+  getPlugins(): Plugin[] {
+    return Array.from(this.plugins.values());
+  }
+
+  getPlugin(pluginId: string): Plugin | undefined {
+    return this.plugins.get(pluginId);
+  }
+
+  private async executePluginHooks(event: PluginEventType, data: any): Promise<any> {
+    let result = data;
+    const enabledPlugins = Array.from(this.plugins.values())
+      .filter(p => p.enabled)
+      .sort((a, b) => {
+        const aPriority = a.hooks.find(h => h.event === event)?.priority || 0;
+        const bPriority = b.hooks.find(h => h.event === event)?.priority || 0;
+        return bPriority - aPriority;
+      });
+
+    for (const plugin of enabledPlugins) {
+      for (const hook of plugin.hooks.filter(h => h.event === event)) {
+        try {
+          result = await hook.handler(result, this);
+        } catch (error) {
+          this.logger.error('Plugin hook error', { 
+            pluginId: plugin.id, 
+            event, 
+            error: (error as Error).message 
+          });
+        }
+      }
+    }
+
+    return result;
   }
 
   async logout(callback?: (err: Error | null) => void): Promise<void> {

@@ -372,6 +372,202 @@ await api.palitanAngGroupName(threadID, 'New Group Name');
 
 ---
 
+## 🎤 Voice Message Support (v0.3.0)
+
+```typescript
+// Send voice message
+await api.sendVoice('./audio.mp3', threadID, { duration: 30 });
+await api.magpadalaNgBoses('./audio.mp3', threadID);
+```
+
+---
+
+## 📎 File Attachment Support (v0.3.0)
+
+```typescript
+// Send documents and files
+await api.sendFile('./document.pdf', threadID, { filename: 'Report.pdf' });
+await api.magpadalaNgFile('./spreadsheet.xlsx', threadID);
+```
+
+Supported formats: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, ZIP, RAR (up to 100MB)
+
+---
+
+## 📱 Story/Reels Posting (v0.3.0)
+
+### Stories
+```typescript
+// Post a story
+const story = await api.postStory('./photo.jpg', {
+  privacy: 'friends',
+  textOverlay: 'Hello World!',
+  expiresIn: 24 * 60 * 60 * 1000 // 24 hours
+});
+
+// Get stories
+const stories = await api.getStories();
+await api.kuninAngStories(userID);
+
+// Delete story
+await api.deleteStory(storyID);
+```
+
+### Reels
+```typescript
+// Post a reel
+const reel = await api.postReel('./video.mp4', {
+  caption: 'Check this out!',
+  privacy: 'public'
+});
+
+// Get reels
+const reels = await api.getReels();
+await api.kuninAngReels(userID);
+```
+
+---
+
+## 🛒 Marketplace Integration (v0.3.0)
+
+```typescript
+// Create a listing
+const listing = await api.createListing({
+  title: 'iPhone 15 Pro',
+  description: 'Brand new, sealed',
+  price: 65000,
+  currency: 'PHP',
+  category: 'electronics',
+  condition: 'new',
+  photos: ['./photo1.jpg', './photo2.jpg'],
+  location: 'Manila'
+});
+
+// Search marketplace
+const results = await api.searchMarketplace({
+  query: 'iPhone',
+  category: 'electronics',
+  minPrice: 20000,
+  maxPrice: 80000,
+  sortBy: 'price_low'
+});
+
+// Get my listings
+const myListings = await api.getMyListings();
+await api.kuninAngMgaListingsKo();
+
+// Mark as sold
+await api.markAsSold(listingID);
+```
+
+---
+
+## 🎮 Gaming & Watch Together (v0.3.0)
+
+### Watch Together
+```typescript
+// Start watch party
+const session = await api.startWatchTogether(threadID, {
+  videoUrl: 'https://youtube.com/watch?v=...',
+  videoTitle: 'Movie Night',
+  autoStart: true
+});
+
+// Control playback
+await api.controlWatchTogether(sessionID, 'play');
+await api.controlWatchTogether(sessionID, 'pause');
+await api.controlWatchTogether(sessionID, 'seek', 120); // Seek to 2:00
+```
+
+### Gaming
+```typescript
+// Get available games
+const games = await api.getAvailableGames();
+
+// Start a game
+const game = await api.startGame(threadID, 'trivia');
+
+// Send game invite
+await api.sendGameInvite(threadID, 'wordguess');
+```
+
+---
+
+## 📊 Analytics Dashboard (v0.3.0)
+
+```typescript
+// Get analytics
+const analytics = await api.getAnalytics('week');
+console.log(analytics.messageStats);
+console.log(analytics.performanceStats);
+
+// Export analytics
+await api.exportAnalytics('json', './analytics.json');
+await api.exportAnalytics('csv', './analytics.csv');
+
+// Reset analytics
+await api.resetAnalytics();
+```
+
+---
+
+## 🔌 Plugin System (v0.3.0)
+
+```typescript
+// Create a plugin
+const myPlugin = {
+  id: 'auto-reply',
+  name: 'Auto Reply Plugin',
+  version: '1.0.0',
+  description: 'Automatically replies to messages',
+  author: 'Your Name',
+  enabled: true,
+  hooks: [{
+    event: 'onMessageReceived',
+    priority: 10,
+    handler: async (message, api) => {
+      if (message.body.toLowerCase() === 'hello') {
+        await api.sendMessage('Hi there!', message.threadID);
+      }
+      return message;
+    }
+  }]
+};
+
+// Register plugin
+api.registerPlugin(myPlugin);
+
+// Manage plugins
+api.enablePlugin('auto-reply');
+api.disablePlugin('auto-reply');
+api.unregisterPlugin('auto-reply');
+
+// List plugins
+const plugins = api.getPlugins();
+```
+
+---
+
+## 🌟 New Filipino Functions (v0.3.0)
+
+| Tagalog Method | English Equivalent | Description |
+|----------------|-------------------|-------------|
+| `magpadalaNgBoses()` | `sendVoice()` | Send voice message |
+| `magpadalaNgFile()` | `sendFile()` | Send file attachment |
+| `magpostNgStory()` | `postStory()` | Post story |
+| `kuninAngStories()` | `getStories()` | Get stories |
+| `magpostNgReel()` | `postReel()` | Post reel |
+| `kuninAngReels()` | `getReels()` | Get reels |
+| `gumawaNgListing()` | `createListing()` | Create marketplace listing |
+| `hanapiNgListings()` | `searchMarketplace()` | Search marketplace |
+| `kuninAngMgaListingsKo()` | `getMyListings()` | Get my listings |
+| `magsimulaNgWatchTogether()` | `startWatchTogether()` | Start watch party |
+| `magsimulaNgLaro()` | `startGame()` | Start game |
+| `kuninAngMgaLaro()` | `getAvailableGames()` | Get available games |
+| `kuninAngAnalytics()` | `getAnalytics()` | Get analytics |
+
+---
+
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) file for details.

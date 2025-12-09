@@ -336,6 +336,66 @@ export interface LiwanagApi {
   registerWebhook(config: WebhookConfig): void;
   unregisterWebhook(webhookID: string): void;
   getWebhooks(): WebhookConfig[];
+
+  // Voice message support
+  sendVoice(audioPath: string, threadID: string, options?: VoiceMessageOptions, callback?: (err: Error | null, messageInfo: VoiceMessage) => void): Promise<VoiceMessage>;
+  magpadalaNgBoses(audioPath: string, threadID: string, options?: VoiceMessageOptions, callback?: (err: Error | null, messageInfo: VoiceMessage) => void): Promise<VoiceMessage>;
+
+  // File attachment support
+  sendFile(filePath: string, threadID: string, options?: FileAttachmentOptions, callback?: (err: Error | null, attachment: FileAttachment) => void): Promise<FileAttachment>;
+  magpadalaNgFile(filePath: string, threadID: string, options?: FileAttachmentOptions, callback?: (err: Error | null, attachment: FileAttachment) => void): Promise<FileAttachment>;
+
+  // Story/Reels support
+  postStory(mediaPath: string, options?: StoryOptions, callback?: (err: Error | null, story: Story) => void): Promise<Story>;
+  magpostNgStory(mediaPath: string, options?: StoryOptions, callback?: (err: Error | null, story: Story) => void): Promise<Story>;
+  getStories(userID?: string, callback?: (err: Error | null, stories: Story[]) => void): Promise<Story[]>;
+  kuninAngStories(userID?: string, callback?: (err: Error | null, stories: Story[]) => void): Promise<Story[]>;
+  deleteStory(storyID: string, callback?: (err: Error | null) => void): Promise<void>;
+  postReel(videoPath: string, options?: ReelsOptions, callback?: (err: Error | null, reel: Reel) => void): Promise<Reel>;
+  magpostNgReel(videoPath: string, options?: ReelsOptions, callback?: (err: Error | null, reel: Reel) => void): Promise<Reel>;
+  getReels(userID?: string, callback?: (err: Error | null, reels: Reel[]) => void): Promise<Reel[]>;
+  kuninAngReels(userID?: string, callback?: (err: Error | null, reels: Reel[]) => void): Promise<Reel[]>;
+
+  // Marketplace integration
+  createListing(options: MarketplaceListingOptions, callback?: (err: Error | null, listing: MarketplaceListing) => void): Promise<MarketplaceListing>;
+  gumawaNgListing(options: MarketplaceListingOptions, callback?: (err: Error | null, listing: MarketplaceListing) => void): Promise<MarketplaceListing>;
+  updateListing(listingID: string, updates: Partial<MarketplaceListingOptions>, callback?: (err: Error | null, listing: MarketplaceListing) => void): Promise<MarketplaceListing>;
+  deleteListing(listingID: string, callback?: (err: Error | null) => void): Promise<void>;
+  searchMarketplace(options: MarketplaceSearchOptions, callback?: (err: Error | null, listings: MarketplaceListing[]) => void): Promise<MarketplaceListing[]>;
+  hanapiNgListings(options: MarketplaceSearchOptions, callback?: (err: Error | null, listings: MarketplaceListing[]) => void): Promise<MarketplaceListing[]>;
+  getMyListings(callback?: (err: Error | null, listings: MarketplaceListing[]) => void): Promise<MarketplaceListing[]>;
+  kuninAngMgaListingsKo(callback?: (err: Error | null, listings: MarketplaceListing[]) => void): Promise<MarketplaceListing[]>;
+  markAsSold(listingID: string, callback?: (err: Error | null) => void): Promise<void>;
+
+  // Watch Together
+  startWatchTogether(threadID: string, options: WatchTogetherOptions, callback?: (err: Error | null, session: WatchTogetherSession) => void): Promise<WatchTogetherSession>;
+  magsimulaNgWatchTogether(threadID: string, options: WatchTogetherOptions, callback?: (err: Error | null, session: WatchTogetherSession) => void): Promise<WatchTogetherSession>;
+  joinWatchTogether(sessionID: string, callback?: (err: Error | null, session: WatchTogetherSession) => void): Promise<WatchTogetherSession>;
+  leaveWatchTogether(sessionID: string, callback?: (err: Error | null) => void): Promise<void>;
+  controlWatchTogether(sessionID: string, action: 'play' | 'pause' | 'seek', value?: number, callback?: (err: Error | null) => void): Promise<void>;
+
+  // Gaming features
+  startGame(threadID: string, gameID: string, callback?: (err: Error | null, session: GameSession) => void): Promise<GameSession>;
+  magsimulaNgLaro(threadID: string, gameID: string, callback?: (err: Error | null, session: GameSession) => void): Promise<GameSession>;
+  joinGame(sessionID: string, callback?: (err: Error | null, session: GameSession) => void): Promise<GameSession>;
+  leaveGame(sessionID: string, callback?: (err: Error | null) => void): Promise<void>;
+  getAvailableGames(callback?: (err: Error | null, games: AvailableGame[]) => void): Promise<AvailableGame[]>;
+  kuninAngMgaLaro(callback?: (err: Error | null, games: AvailableGame[]) => void): Promise<AvailableGame[]>;
+  sendGameInvite(threadID: string, gameID: string, callback?: (err: Error | null, invite: GameInvite) => void): Promise<GameInvite>;
+
+  // Analytics dashboard
+  getAnalytics(period?: 'day' | 'week' | 'month' | 'all', callback?: (err: Error | null, data: AnalyticsData) => void): Promise<AnalyticsData>;
+  kuninAngAnalytics(period?: 'day' | 'week' | 'month' | 'all', callback?: (err: Error | null, data: AnalyticsData) => void): Promise<AnalyticsData>;
+  exportAnalytics(format: 'json' | 'csv', path: string, callback?: (err: Error | null) => void): Promise<void>;
+  resetAnalytics(callback?: (err: Error | null) => void): Promise<void>;
+
+  // Plugin system
+  registerPlugin(plugin: Plugin): void;
+  unregisterPlugin(pluginId: string): void;
+  enablePlugin(pluginId: string): void;
+  disablePlugin(pluginId: string): void;
+  getPlugins(): Plugin[];
+  getPlugin(pluginId: string): Plugin | undefined;
 }
 
 // Two-Factor Authentication Types
@@ -444,4 +504,308 @@ export interface WebhookPayload {
   event: WebhookEventType;
   timestamp: number;
   data: any;
+}
+
+// ==================== VOICE MESSAGE TYPES ====================
+export interface VoiceMessageOptions {
+  duration?: number;
+  waveform?: number[];
+}
+
+export interface VoiceMessage {
+  messageID: string;
+  threadID: string;
+  audioUrl: string;
+  duration: number;
+  timestamp: number;
+}
+
+// ==================== FILE ATTACHMENT TYPES ====================
+export interface FileAttachmentOptions {
+  filename?: string;
+  description?: string;
+}
+
+export type SupportedFileType = 'pdf' | 'doc' | 'docx' | 'xls' | 'xlsx' | 'ppt' | 'pptx' | 'txt' | 'zip' | 'rar';
+
+export interface FileAttachment {
+  id: string;
+  filename: string;
+  fileType: SupportedFileType | string;
+  size: number;
+  url?: string;
+  timestamp: number;
+}
+
+// ==================== STORY/REELS TYPES ====================
+export interface StoryOptions {
+  duration?: number;
+  backgroundColor?: string;
+  textOverlay?: string;
+  musicId?: string;
+  privacy?: 'public' | 'friends' | 'close_friends';
+  allowReplies?: boolean;
+  expiresIn?: number;
+}
+
+export interface Story {
+  storyID: string;
+  authorID: string;
+  type: 'photo' | 'video' | 'text';
+  mediaUrl?: string;
+  text?: string;
+  timestamp: number;
+  expiresAt: number;
+  views: number;
+  reactions: StoryReaction[];
+}
+
+export interface StoryReaction {
+  userID: string;
+  reaction: string;
+  timestamp: number;
+}
+
+export interface ReelsOptions {
+  caption?: string;
+  music?: {
+    trackId: string;
+    startTime?: number;
+    duration?: number;
+  };
+  effects?: string[];
+  privacy?: 'public' | 'friends';
+  allowComments?: boolean;
+  allowDuet?: boolean;
+  allowStitch?: boolean;
+}
+
+export interface Reel {
+  reelID: string;
+  authorID: string;
+  videoUrl: string;
+  thumbnailUrl: string;
+  caption?: string;
+  duration: number;
+  timestamp: number;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+}
+
+// ==================== MARKETPLACE TYPES ====================
+export interface MarketplaceListingOptions {
+  title: string;
+  description: string;
+  price: number;
+  currency?: string;
+  category: MarketplaceCategory;
+  condition?: 'new' | 'like_new' | 'good' | 'fair' | 'poor';
+  photos: string[];
+  location?: string;
+  deliveryOptions?: ('pickup' | 'shipping' | 'both')[];
+  negotiable?: boolean;
+}
+
+export type MarketplaceCategory = 
+  | 'vehicles'
+  | 'property'
+  | 'electronics'
+  | 'clothing'
+  | 'furniture'
+  | 'toys'
+  | 'sports'
+  | 'books'
+  | 'music'
+  | 'garden'
+  | 'pets'
+  | 'home'
+  | 'other';
+
+export interface MarketplaceListing {
+  listingID: string;
+  sellerID: string;
+  title: string;
+  description: string;
+  price: number;
+  currency: string;
+  category: MarketplaceCategory;
+  condition: string;
+  photos: string[];
+  location?: string;
+  timestamp: number;
+  status: 'active' | 'sold' | 'pending' | 'removed';
+  views: number;
+  saves: number;
+}
+
+export interface MarketplaceSearchOptions {
+  query?: string;
+  category?: MarketplaceCategory;
+  minPrice?: number;
+  maxPrice?: number;
+  location?: string;
+  radius?: number;
+  condition?: string[];
+  sortBy?: 'date' | 'price_low' | 'price_high' | 'distance';
+  limit?: number;
+}
+
+// ==================== WATCH TOGETHER TYPES ====================
+export interface WatchTogetherSession {
+  sessionID: string;
+  hostID: string;
+  threadID: string;
+  videoUrl: string;
+  videoTitle?: string;
+  participants: string[];
+  currentTime: number;
+  isPlaying: boolean;
+  timestamp: number;
+}
+
+export interface WatchTogetherOptions {
+  videoUrl: string;
+  videoTitle?: string;
+  autoStart?: boolean;
+}
+
+// ==================== GAMING TYPES ====================
+export interface GameSession {
+  sessionID: string;
+  gameID: string;
+  gameName: string;
+  hostID: string;
+  threadID: string;
+  participants: string[];
+  status: 'waiting' | 'playing' | 'finished';
+  scores: Record<string, number>;
+  timestamp: number;
+}
+
+export interface GameInvite {
+  inviteID: string;
+  gameID: string;
+  gameName: string;
+  hostID: string;
+  hostName: string;
+  threadID: string;
+  timestamp: number;
+  expiresAt: number;
+}
+
+export interface AvailableGame {
+  gameID: string;
+  name: string;
+  description: string;
+  minPlayers: number;
+  maxPlayers: number;
+  category: 'puzzle' | 'trivia' | 'action' | 'multiplayer' | 'casual';
+  thumbnailUrl: string;
+}
+
+// ==================== ANALYTICS TYPES ====================
+export interface AnalyticsData {
+  period: 'day' | 'week' | 'month' | 'all';
+  startDate: Date;
+  endDate: Date;
+  messageStats: MessageStats;
+  engagementStats: EngagementStats;
+  performanceStats: PerformanceStats;
+  topThreads: ThreadStats[];
+  topUsers: UserStats[];
+}
+
+export interface MessageStats {
+  sent: number;
+  received: number;
+  photos: number;
+  videos: number;
+  stickers: number;
+  voiceMessages: number;
+  files: number;
+}
+
+export interface EngagementStats {
+  reactions: number;
+  replies: number;
+  mentions: number;
+  avgResponseTime: number;
+  peakHours: number[];
+}
+
+export interface PerformanceStats {
+  apiCalls: number;
+  errors: number;
+  errorRate: number;
+  avgLatency: number;
+  uptime: number;
+}
+
+export interface ThreadStats {
+  threadID: string;
+  threadName: string;
+  messageCount: number;
+  lastActivity: number;
+}
+
+export interface UserStats {
+  userID: string;
+  userName: string;
+  messageCount: number;
+  lastActivity: number;
+}
+
+// ==================== PLUGIN SYSTEM TYPES ====================
+export interface Plugin {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  enabled: boolean;
+  hooks: PluginHook[];
+  config?: Record<string, any>;
+}
+
+export interface PluginHook {
+  event: PluginEventType;
+  handler: (data: any, api: LiwanagApi) => Promise<any> | any;
+  priority?: number;
+}
+
+export type PluginEventType =
+  | 'beforeSendMessage'
+  | 'afterSendMessage'
+  | 'onMessageReceived'
+  | 'beforeLogin'
+  | 'afterLogin'
+  | 'onError'
+  | 'onReaction'
+  | 'onTyping'
+  | 'onPresence'
+  | 'custom';
+
+export interface PluginContext {
+  api: LiwanagApi;
+  logger: any;
+  storage: PluginStorage;
+}
+
+export interface PluginStorage {
+  get(key: string): Promise<any>;
+  set(key: string, value: any): Promise<void>;
+  delete(key: string): Promise<void>;
+  clear(): Promise<void>;
+}
+
+export interface PluginManager {
+  register(plugin: Plugin): void;
+  unregister(pluginId: string): void;
+  enable(pluginId: string): void;
+  disable(pluginId: string): void;
+  getPlugin(pluginId: string): Plugin | undefined;
+  getPlugins(): Plugin[];
+  executeHook(event: PluginEventType, data: any): Promise<any>;
 }
