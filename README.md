@@ -4,8 +4,13 @@
 
 Ang **Liwanag** ay isang comprehensive at user-friendly na Filipino version ng Facebook Chat API library na specially designed para sa mga Filipino developers. Nag-aalok ito ng complete automation at interaction capabilities para sa Facebook accounts.
 
-[![npm version](https://badge.fury.io/js/liwanag-fca.svg)](https://badge.fury.io/js/liwanag-fca)
+[![npm version](https://badge.fury.io/js/liwanag-fca.svg)](https://www.npmjs.com/package/liwanag-fca)
+[![CI](https://github.com/nazzeldevelopment/liwanag-fca/actions/workflows/ci.yml/badge.svg)](https://github.com/nazzeldevelopment/liwanag/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-98.8%25-blue)](https://www.typescriptlang.org/)
+[![Node.js Version](https://img.shields.io/node/v/liwanag-fca)](https://nodejs.org)
+[![Downloads](https://img.shields.io/npm/dm/liwanag-fca.svg)](https://www.npmjs.com/package/liwanag-fca)
+[![GitHub Stars](https://img.shields.io/github/stars/nazzeldevelopment/bituin-fca)](https://github.com/nazzeldevelopment/liwanag-fca/stargazers)
 
 ---
 
