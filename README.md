@@ -372,7 +372,7 @@ await api.palitanAngGroupName(threadID, 'New Group Name');
 
 ---
 
-## 🎤 Voice Message Support (v0.3.0)
+## 🎤 Voice Message Support
 
 ```typescript
 // Send voice message
@@ -382,7 +382,7 @@ await api.magpadalaNgBoses('./audio.mp3', threadID);
 
 ---
 
-## 📎 File Attachment Support (v0.3.0)
+## 📎 File Attachment Support
 
 ```typescript
 // Send documents and files
@@ -394,7 +394,7 @@ Supported formats: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, ZIP, RAR (up to 10
 
 ---
 
-## 📱 Story/Reels Posting (v0.3.0)
+## 📱 Story/Reels Posting
 
 ### Stories
 ```typescript
@@ -428,7 +428,7 @@ await api.kuninAngReels(userID);
 
 ---
 
-## 🛒 Marketplace Integration (v0.3.0)
+## 🛒 Marketplace Integration
 
 ```typescript
 // Create a listing
@@ -462,7 +462,7 @@ await api.markAsSold(listingID);
 
 ---
 
-## 🎮 Gaming & Watch Together (v0.3.0)
+## 🎮 Gaming & Watch Together
 
 ### Watch Together
 ```typescript
@@ -493,7 +493,7 @@ await api.sendGameInvite(threadID, 'wordguess');
 
 ---
 
-## 📊 Analytics Dashboard (v0.3.0)
+## 📊 Analytics Dashboard
 
 ```typescript
 // Get analytics
@@ -511,7 +511,7 @@ await api.resetAnalytics();
 
 ---
 
-## 🔌 Plugin System (v0.3.0)
+## 🔌 Plugin System
 
 ```typescript
 // Create a plugin
@@ -548,7 +548,7 @@ const plugins = api.getPlugins();
 
 ---
 
-## 🌟 New Filipino Functions (v0.3.0)
+## 🌟 New Filipino Functions
 
 | Tagalog Method | English Equivalent | Description |
 |----------------|-------------------|-------------|
