@@ -51,8 +51,8 @@ export class MqttClient extends EventEmitter {
   private maxReconnectAttempts: number = 10;
   private lastSeqId: string = '';
   private syncToken: string = '';
-  private sessionId: string;
-  private irisSeqId: string = '';
+  private sessionId: number;
+  private deviceId: string;
 
   constructor(
     userId: string,
@@ -71,15 +71,17 @@ export class MqttClient extends EventEmitter {
       updatePresence: config.updatePresence ?? true
     };
     this.logger = logger || new Logger({ language: 'tl' });
-    this.sessionId = this.generateSessionId();
+    this.sessionId = Math.floor(Math.random() * 0xFFFFFFFF);
+    this.deviceId = this.generateDeviceId();
   }
 
-  private generateSessionId(): string {
-    return Math.floor(Math.random() * 0xFFFFFFFF).toString(16);
-  }
-
-  private generateClientId(): string {
-    return `mqttwsclient${Date.now()}`;
+  private generateDeviceId(): string {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < 22; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
   }
 
   private getCookieString(): string {
@@ -88,7 +90,15 @@ export class MqttClient extends EventEmitter {
       .join('; ');
   }
 
-  private buildConnectPayload(): Buffer {
+  private getSessionCookies(): string {
+    const sessionCookies: Record<string, string> = {};
+    for (const cookie of this.appState.cookies) {
+      sessionCookies[cookie.name] = cookie.value;
+    }
+    return JSON.stringify(sessionCookies);
+  }
+
+  private buildUsername(): string {
     const payload = {
       u: this.userId,
       s: this.sessionId,
@@ -96,7 +106,7 @@ export class MqttClient extends EventEmitter {
       ecp: 10,
       chat_on: true,
       fg: false,
-      d: this.generateClientId(),
+      d: this.deviceId,
       ct: 'websocket',
       mqtt_sid: '',
       aid: parseInt(FB_APP_ID),
@@ -108,34 +118,34 @@ export class MqttClient extends EventEmitter {
       pack: []
     };
 
-    return Buffer.from(JSON.stringify(payload));
+    return JSON.stringify(payload);
   }
 
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const endpoint = `wss://edge-chat.facebook.com/chat?region=${this.config.region}&sid=${this.sessionId}`;
+        const endpoint = `wss://edge-chat.messenger.com/chat?region=${this.config.region}&sid=${this.sessionId}`;
         
         this.logger.info('Kumokonekta sa MQTT server...', {
-          endpoint: 'edge-chat.facebook.com',
+          endpoint: 'edge-chat.messenger.com',
           region: this.config.region
         });
 
-        const clientId = this.generateClientId();
-        
         const options: mqtt.IClientOptions = {
-          clientId,
+          clientId: 'mqttwsclient',
           protocolId: 'MQIsdp',
           protocolVersion: 3,
           clean: true,
-          keepalive: 60,
+          keepalive: 10,
           connectTimeout: 60000,
           reconnectPeriod: 5000,
+          username: this.buildUsername(),
+          password: this.getSessionCookies(),
           wsOptions: {
             headers: {
               'Cookie': this.getCookieString(),
               'User-Agent': this.config.userAgent,
-              'Origin': 'https://www.facebook.com'
+              'Origin': 'https://www.messenger.com'
             }
           }
         };
