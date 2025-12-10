@@ -548,7 +548,298 @@ const plugins = api.getPlugins();
 
 ---
 
-## 🌟 New Filipino Functions
+## 📺 Live Video Streaming
+
+```typescript
+// Start a live stream
+const stream = await api.startLiveStream({
+  title: 'My Live Stream',
+  description: 'Streaming with Liwanag!',
+  privacy: 'friends'
+});
+await api.magsimulaNgLiveStream(options);
+
+console.log('RTMP URL:', stream.rtmpUrl);
+console.log('Stream Key:', stream.streamKey);
+
+// Listen for stream events
+api.onLiveStreamEvent(stream.streamId, (event) => {
+  console.log('Viewers:', event.viewerCount);
+  console.log('Comments:', event.comments);
+});
+
+// End the stream
+await api.endLiveStream(stream.streamId);
+await api.tapusinAngLiveStream(streamId);
+
+// Get active streams
+const streams = await api.getLiveStreams();
+await api.kuninAngMgaLiveStream();
+```
+
+---
+
+## 🤖 NLP Chatbot Integration
+
+```typescript
+// Configure chatbot
+api.configureChatbot({
+  enabled: true,
+  language: 'tl', // Tagalog
+  fallbackResponse: 'Pasensya, hindi ko maintindihan.',
+  provider: 'builtin'
+});
+api.iConfigAngChatbot(options);
+
+// Add intents
+api.addChatbotIntent({
+  name: 'greeting',
+  patterns: ['hello', 'hi', 'kumusta', 'musta'],
+  responses: ['Hello!', 'Kumusta ka?', 'Hi din!']
+});
+
+// Process messages
+const response = await api.processChatbotMessage('Kumusta po?');
+console.log(response.reply); // 'Kumusta ka?'
+console.log(response.intent); // 'greeting'
+console.log(response.confidence); // 0.95
+
+// Manage context
+const context = api.getChatbotContext(userId);
+api.clearChatbotContext(userId);
+```
+
+---
+
+## 👥 Multi-Account Management
+
+```typescript
+// Add accounts
+await api.addAccount(appState1, { name: 'Primary' });
+await api.addAccount(appState2, { name: 'Secondary' });
+await api.magdagdagNgAccount(appState, options);
+
+// Switch between accounts
+await api.switchAccount(accountId);
+await api.lumipatNgAccount(accountId);
+
+// Get all accounts
+const accounts = await api.getAccounts();
+await api.kuninAngMgaAccount();
+
+// Get active account
+const active = api.getActiveAccount();
+
+// Get account statistics
+const stats = await api.getAccountStats(accountId);
+
+// Configure account manager
+api.configureAccountManager({
+  maxAccounts: 5,
+  autoRotation: false,
+  failover: true
+});
+```
+
+---
+
+## 📝 Automated Response Templates
+
+```typescript
+// Add a template
+api.addTemplate({
+  id: 'welcome',
+  name: 'Welcome Message',
+  trigger: {
+    type: 'keyword',
+    value: 'hello',
+    matchType: 'contains'
+  },
+  response: {
+    type: 'text',
+    content: 'Welcome to our page! How can I help you?'
+  },
+  enabled: true
+});
+api.magdagdagNgTemplate(template);
+
+// Get templates
+const templates = api.getTemplates();
+await api.kuninAngMgaTemplate();
+
+// Enable/disable templates
+api.enableTemplate('welcome');
+api.disableTemplate('welcome');
+
+// Test template matching
+const result = api.testTemplate('Hello po!');
+console.log(result.matched); // true
+console.log(result.response); // 'Welcome to our page!'
+```
+
+---
+
+## ⏰ Message Scheduling
+
+```typescript
+// Schedule a message
+const scheduled = await api.scheduleMessage({
+  threadId: '123456789',
+  message: 'Good morning!',
+  scheduledTime: new Date('2025-12-25 08:00:00'),
+  recurrence: 'daily'
+});
+await api.magScheduleNgMensahe(options);
+
+// Get scheduled messages
+const messages = await api.getScheduledMessages();
+await api.kuninAngMgaScheduledMessage();
+
+// Update scheduled message
+await api.updateScheduledMessage(messageId, { message: 'Updated message' });
+
+// Cancel scheduled message
+await api.cancelScheduledMessage(messageId);
+
+// Configure scheduler
+api.configureScheduler({
+  enabled: true,
+  timezone: 'Asia/Manila',
+  retryOnFail: true
+});
+```
+
+---
+
+## 🛡️ Advanced Spam Detection
+
+```typescript
+// Configure spam detection
+api.configureSpamDetection({
+  enabled: true,
+  sensitivity: 'medium', // low, medium, high
+  actions: ['notify', 'delete'],
+  customPatterns: [{ type: 'keyword', value: 'spam', action: 'block' }]
+});
+api.iConfigAngSpamDetection(options);
+
+// Check if message is spam
+const result = await api.checkForSpam('Free money! Click here!');
+await api.suriiinKungSpam(message);
+console.log(result.isSpam); // true
+console.log(result.score); // 0.95
+console.log(result.reasons); // ['Contains spam pattern']
+
+// Manage whitelist/blacklist
+api.addToWhitelist(userId);
+api.addToBlacklist(userId);
+api.removeFromWhitelist(userId);
+api.removeFromBlacklist(userId);
+
+// Get spam reports
+const reports = await api.getSpamReports();
+await api.resolveSpamReport(reportId, 'dismiss');
+```
+
+---
+
+## 📊 Group Analytics
+
+```typescript
+// Get group analytics
+const analytics = await api.getGroupAnalytics(threadId, 'month');
+await api.kuninAngGroupAnalytics(threadId, period);
+
+console.log(analytics.memberStats);   // { total, active, new, left }
+console.log(analytics.activityStats); // { messages, photos, videos }
+console.log(analytics.peakTimes);     // ['20:00', '21:00']
+console.log(analytics.sentiment);     // { positive: 0.6, neutral: 0.3, negative: 0.1 }
+
+// Get top contributors
+const contributors = await api.getTopContributors(threadId, 10);
+await api.kuninAngTopContributors(threadId, limit);
+
+// Get group sentiment
+const sentiment = await api.getGroupSentiment(threadId);
+
+// Export analytics
+await api.exportGroupAnalytics(threadId, 'json', './group-analytics.json');
+await api.exportGroupAnalytics(threadId, 'csv', './group-analytics.csv');
+```
+
+---
+
+## 🌉 Cross-Platform Messaging Bridge
+
+```typescript
+// Configure bridge
+api.configureBridge({
+  syncMode: 'two_way',
+  attachmentHandling: 'forward',
+  messageFilter: (msg) => !msg.body.includes('secret')
+});
+api.iConfigAngBridge(options);
+
+// Add platforms
+api.addPlatform({
+  type: 'telegram',
+  credentials: { botToken: 'your-token' },
+  channelMappings: [{ from: 'fb-thread-id', to: '-100123456789' }]
+});
+api.addPlatform({
+  type: 'discord',
+  credentials: { botToken: 'your-token' },
+  channelMappings: [{ from: 'fb-thread-id', to: 'discord-channel-id' }]
+});
+
+// Send cross-platform message
+await api.sendCrossPlatformMessage({
+  message: 'Hello from Facebook!',
+  targetPlatform: 'telegram',
+  targetChannel: '-100123456789'
+});
+await api.magpadalaSaIbangPlatform(options);
+
+// Get bridge statistics
+const stats = await api.getBridgeStats();
+await api.kuninAngBridgeStats();
+console.log(stats.messagesBridged);
+console.log(stats.platformsActive);
+
+// Get bridged messages
+const messages = await api.getBridgedMessages();
+```
+
+Supported Platforms: Telegram, Discord, Slack, WhatsApp, Viber, LINE, Messenger
+
+---
+
+## 🌟 New Filipino Functions (v0.4.0)
+
+| Tagalog Method | English Equivalent | Description |
+|----------------|-------------------|-------------|
+| `magsimulaNgLiveStream()` | `startLiveStream()` | Start live video |
+| `tapusinAngLiveStream()` | `endLiveStream()` | End live stream |
+| `kuninAngMgaLiveStream()` | `getLiveStreams()` | Get active streams |
+| `iConfigAngChatbot()` | `configureChatbot()` | Configure chatbot |
+| `magdagdagNgAccount()` | `addAccount()` | Add account |
+| `lumipatNgAccount()` | `switchAccount()` | Switch account |
+| `kuninAngMgaAccount()` | `getAccounts()` | Get all accounts |
+| `magdagdagNgTemplate()` | `addTemplate()` | Add response template |
+| `kuninAngMgaTemplate()` | `getTemplates()` | Get templates |
+| `magScheduleNgMensahe()` | `scheduleMessage()` | Schedule message |
+| `kuninAngMgaScheduledMessage()` | `getScheduledMessages()` | Get scheduled messages |
+| `iConfigAngSpamDetection()` | `configureSpamDetection()` | Configure spam detection |
+| `suriiinKungSpam()` | `checkForSpam()` | Check if spam |
+| `kuninAngGroupAnalytics()` | `getGroupAnalytics()` | Get group analytics |
+| `kuninAngTopContributors()` | `getTopContributors()` | Get top contributors |
+| `iConfigAngBridge()` | `configureBridge()` | Configure bridge |
+| `magpadalaSaIbangPlatform()` | `sendCrossPlatformMessage()` | Send cross-platform |
+| `kuninAngBridgeStats()` | `getBridgeStats()` | Get bridge stats |
+
+---
+
+## 🌟 Filipino Functions (v0.3.0)
 
 | Tagalog Method | English Equivalent | Description |
 |----------------|-------------------|-------------|
