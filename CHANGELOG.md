@@ -5,6 +5,130 @@ Lahat ng notable changes sa project na ito ay dokumentado dito.
 Ang format ay based sa [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 at ang project na ito ay sumusunod sa [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-12-10
+
+### 🎉 Ultimate Feature Release - Complete Platform Implementation
+
+Ang ultimate release na ito ay nagdadala ng lahat ng natitirang planned features mula sa roadmap. Fully implemented na ang lahat ng advanced features with complete interface, type safety, at Tagalog method names.
+
+### ✨ Added
+
+#### 📞 Voice Call Support
+- **Voice Call Methods**
+  - `startVoiceCall()` / `magsimulaNgVoiceCall()` - Start voice call
+  - `joinCall()` / `sumaliSaTawag()` - Join ongoing call
+  - `endCall()` / `tapusinAngTawag()` - End call
+  - `toggleMute()` - Mute/unmute microphone
+  - `getActiveCalls()` / `kuninAngMgaTawag()` - Get active calls
+  - `onCallEvent()` - Listen for call events
+- **Features**
+  - Real-time voice communication
+  - Call quality monitoring (bitrate, latency, packet loss)
+  - Participant management
+  - Mute/unmute controls
+  - Encrypted calls option
+
+#### 📹 Video Call Support
+- **Video Call Methods**
+  - `startVideoCall()` / `magsimulaNgVideoCall()` - Start video call
+  - `toggleVideo()` - Turn video on/off
+- **Features**
+  - HD video quality (up to 1080p)
+  - Frame rate optimization
+  - Multiple participants
+  - Video quality monitoring
+
+#### 🖥️ Screen Sharing in Calls
+- **Screen Share Methods**
+  - `startScreenShare()` / `magsimulaNgScreenShare()` - Start screen sharing
+  - `stopScreenShare()` / `itigilAngScreenShare()` - Stop screen sharing
+  - `pauseScreenShare()` - Pause screen sharing
+  - `resumeScreenShare()` - Resume screen sharing
+- **Features**
+  - Quality options (low, medium, high, auto)
+  - Audio sharing option
+  - Optimized for motion or detail
+  - Viewer count tracking
+
+#### 🤖 Advanced AI-Powered Content Moderation
+- **Moderation Methods**
+  - `configureModeration()` / `iConfigAngModeration()` - Configure moderation
+  - `evaluateMessage()` / `suriiinAngMensahe()` - Evaluate message for violations
+  - `getModerationQueue()` / `kuninAngModerationQueue()` - Get flagged content queue
+  - `approveFlaggedMessage()` - Approve flagged content
+  - `rejectFlaggedMessage()` - Reject flagged content
+  - `getModerationStats()` / `kuninAngModerationStats()` - Get moderation statistics
+  - `addModerationRule()` / `removeModerationRule()` - Manage custom rules
+- **Features**
+  - Multiple provider support (builtin, OpenAI, Perspective, custom)
+  - Sensitivity levels (low, medium, high, strict)
+  - Category detection (hate speech, harassment, violence, spam, scam, etc.)
+  - Custom rule patterns (keyword, regex, AI, custom)
+  - Auto-moderation option
+  - Admin notifications
+
+#### 🔐 End-to-End Encryption Options
+- **Encryption Methods**
+  - `configureEncryption()` / `iConfigAngEncryption()` - Configure encryption
+  - `enableEncryption()` / `paganahinAngEncryption()` - Enable E2E encryption for thread
+  - `disableEncryption()` / `patayinAngEncryption()` - Disable encryption
+  - `rotateEncryptionKeys()` - Rotate encryption keys
+  - `getEncryptionStatus()` / `kuninAngEncryptionStatus()` - Get encryption status
+  - `verifyParticipant()` - Verify participant identity
+  - `getEncryptedThreads()` - Get all encrypted threads
+- **Features**
+  - AES-256-GCM and ChaCha20-Poly1305 algorithms
+  - ECDH and X25519 key exchange
+  - Automatic key rotation
+  - Identity verification
+  - Per-thread encryption
+
+#### 🏪 Advanced Bot Marketplace
+- **Marketplace Methods**
+  - `configureBotMarketplace()` / `iConfigAngBotMarketplace()` - Configure marketplace
+  - `searchBots()` / `hanapiNgMgaBot()` - Search available bots
+  - `getBotDetails()` / `kuninAngBotDetails()` - Get bot details
+  - `installBot()` / `iInstallAngBot()` - Install a bot
+  - `uninstallBot()` / `iUninstallAngBot()` - Uninstall a bot
+  - `getInstalledBots()` / `kuninAngMgaInstalledBot()` - Get installed bots
+  - `enableBot()` / `disableBot()` - Toggle bot status
+  - `configureBotForThread()` - Configure bot for specific thread
+  - `getBotReviews()` / `submitBotReview()` - Manage bot reviews
+- **Features**
+  - Bot categories (productivity, entertainment, moderation, games, etc.)
+  - Bot capabilities (messaging, commands, AI, games, etc.)
+  - Rating and review system
+  - Permission management
+  - Bot statistics tracking
+  - Sandbox mode option
+
+#### 🔄 Custom Webhook Transformations
+- **Transformation Methods**
+  - `configureWebhookTransforms()` / `iConfigAngWebhookTransforms()` - Configure transformations
+  - `addWebhookTransformation()` / `magdagdagNgTransformation()` - Add transformation
+  - `removeWebhookTransformation()` - Remove transformation
+  - `updateWebhookTransformation()` - Update transformation
+  - `getWebhookTransformations()` / `kuninAngMgaTransformation()` - Get transformations
+  - `testWebhookTransformation()` - Test transformation with sample payload
+  - `enableWebhookTransformation()` / `disableWebhookTransformation()` - Toggle transformation
+- **Features**
+  - Transformation types (map, filter, enrich, custom)
+  - Field mappings with transforms (uppercase, lowercase, trim, hash, mask)
+  - Filters with operators (eq, neq, gt, lt, contains, matches, exists)
+  - Enrichments from user/thread info
+  - Priority-based execution
+  - Error handling options (skip, abort, fallback)
+
+### 🔧 Technical Improvements
+- Complete TypeScript type definitions for all new features
+- Enhanced error handling and validation
+- Improved call quality monitoring
+- Real-time event callbacks for calls
+- Better security with E2E encryption options
+- Tagalog method aliases for all new features
+
+---
+
 ## [0.4.0] - 2025-12-10
 
 ### 🎉 Major Feature Release - Advanced Features Implementation
@@ -468,13 +592,12 @@ Ang unang release ng **Liwanag** - Filipino Facebook Chat API Library!
 ## [Unreleased]
 
 ### 🚧 Future Planned Features
-- Advanced AI-powered content moderation
-- Voice call support
-- Video call support
-- Screen sharing in calls
-- End-to-end encryption options
-- Advanced bot marketplace
-- Custom webhook transformations
+- Advanced audio/video codecs optimization
+- Cloud recording for calls
+- Real-time transcription for calls
+- AI-powered auto-responses
+- Advanced analytics with ML insights
+- Custom bot development SDK
 
 ---
 

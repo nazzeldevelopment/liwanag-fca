@@ -479,6 +479,88 @@ export interface LiwanagApi {
   sendCrossPlatformMessage(platform: SupportedPlatform, channel: string, message: string): Promise<BridgedMessage>;
   magpadalaSaIbangPlatform(platform: SupportedPlatform, channel: string, message: string): Promise<BridgedMessage>;
   getBridgedMessages(): BridgedMessage[];
+
+  // Voice Call Support
+  startVoiceCall(threadID: string, options?: Partial<CallOptions>, callback?: (err: Error | null, call: CallSession) => void): Promise<CallSession>;
+  magsimulaNgVoiceCall(threadID: string, options?: Partial<CallOptions>, callback?: (err: Error | null, call: CallSession) => void): Promise<CallSession>;
+  startVideoCall(threadID: string, options?: Partial<CallOptions>, callback?: (err: Error | null, call: CallSession) => void): Promise<CallSession>;
+  magsimulaNgVideoCall(threadID: string, options?: Partial<CallOptions>, callback?: (err: Error | null, call: CallSession) => void): Promise<CallSession>;
+  joinCall(callID: string, callback?: (err: Error | null, call: CallSession) => void): Promise<CallSession>;
+  sumaliSaTawag(callID: string, callback?: (err: Error | null, call: CallSession) => void): Promise<CallSession>;
+  endCall(callID: string, callback?: (err: Error | null) => void): Promise<void>;
+  tapusinAngTawag(callID: string, callback?: (err: Error | null) => void): Promise<void>;
+  toggleMute(callID: string, muted: boolean, callback?: (err: Error | null) => void): Promise<void>;
+  toggleVideo(callID: string, videoOn: boolean, callback?: (err: Error | null) => void): Promise<void>;
+  getActiveCalls(): CallSession[];
+  kuninAngMgaTawag(): CallSession[];
+  onCallEvent(callID: string, callback: CallCallback): void;
+
+  // Screen Sharing
+  startScreenShare(callID: string, options?: ScreenShareOptions, callback?: (err: Error | null, session: ScreenShareSession) => void): Promise<ScreenShareSession>;
+  magsimulaNgScreenShare(callID: string, options?: ScreenShareOptions, callback?: (err: Error | null, session: ScreenShareSession) => void): Promise<ScreenShareSession>;
+  stopScreenShare(callID: string, callback?: (err: Error | null) => void): Promise<void>;
+  itigilAngScreenShare(callID: string, callback?: (err: Error | null) => void): Promise<void>;
+  pauseScreenShare(callID: string, callback?: (err: Error | null) => void): Promise<void>;
+  resumeScreenShare(callID: string, callback?: (err: Error | null) => void): Promise<void>;
+
+  // AI Content Moderation
+  configureModeration(config: ModerationConfig): void;
+  iConfigAngModeration(config: ModerationConfig): void;
+  evaluateMessage(message: string, senderID: string, threadID: string): Promise<ModerationResult>;
+  suriiinAngMensahe(message: string, senderID: string, threadID: string): Promise<ModerationResult>;
+  getModerationQueue(status?: 'pending' | 'approved' | 'rejected'): ModerationQueue;
+  kuninAngModerationQueue(status?: 'pending' | 'approved' | 'rejected'): ModerationQueue;
+  approveFlaggedMessage(resultID: string, callback?: (err: Error | null) => void): Promise<void>;
+  rejectFlaggedMessage(resultID: string, callback?: (err: Error | null) => void): Promise<void>;
+  getModerationStats(): ModerationStats;
+  kuninAngModerationStats(): ModerationStats;
+  addModerationRule(rule: ModerationRule): void;
+  removeModerationRule(ruleID: string): void;
+
+  // End-to-End Encryption
+  configureEncryption(config: EncryptionConfig): void;
+  iConfigAngEncryption(config: EncryptionConfig): void;
+  enableEncryption(threadID: string, callback?: (err: Error | null, status: EncryptionStatus) => void): Promise<EncryptionStatus>;
+  paganahinAngEncryption(threadID: string, callback?: (err: Error | null, status: EncryptionStatus) => void): Promise<EncryptionStatus>;
+  disableEncryption(threadID: string, callback?: (err: Error | null) => void): Promise<void>;
+  patayinAngEncryption(threadID: string, callback?: (err: Error | null) => void): Promise<void>;
+  rotateEncryptionKeys(threadID: string, callback?: (err: Error | null, keyPair: EncryptionKeyPair) => void): Promise<EncryptionKeyPair>;
+  getEncryptionStatus(threadID: string): EncryptionStatus | undefined;
+  kuninAngEncryptionStatus(threadID: string): EncryptionStatus | undefined;
+  verifyParticipant(threadID: string, userID: string, callback?: (err: Error | null, verified: boolean) => void): Promise<boolean>;
+  getEncryptedThreads(): EncryptedThread[];
+
+  // Bot Marketplace
+  configureBotMarketplace(config: BotMarketplaceConfig): void;
+  iConfigAngBotMarketplace(config: BotMarketplaceConfig): void;
+  searchBots(options?: BotSearchOptions): Promise<BotListing[]>;
+  hanapiNgMgaBot(options?: BotSearchOptions): Promise<BotListing[]>;
+  getBotDetails(botID: string): Promise<BotListing | undefined>;
+  kuninAngBotDetails(botID: string): Promise<BotListing | undefined>;
+  installBot(botID: string, config?: Record<string, any>, callback?: (err: Error | null, bot: InstalledBot) => void): Promise<InstalledBot>;
+  iInstallAngBot(botID: string, config?: Record<string, any>, callback?: (err: Error | null, bot: InstalledBot) => void): Promise<InstalledBot>;
+  uninstallBot(botID: string, callback?: (err: Error | null) => void): Promise<void>;
+  iUninstallAngBot(botID: string, callback?: (err: Error | null) => void): Promise<void>;
+  getInstalledBots(): InstalledBot[];
+  kuninAngMgaInstalledBot(): InstalledBot[];
+  enableBot(botID: string): void;
+  disableBot(botID: string): void;
+  configureBotForThread(botID: string, threadID: string, config?: Record<string, any>): void;
+  getBotReviews(botID: string): Promise<BotReview[]>;
+  submitBotReview(botID: string, rating: number, review: string): Promise<BotReview>;
+
+  // Custom Webhook Transformations
+  configureWebhookTransforms(config: WebhookTransformConfig): void;
+  iConfigAngWebhookTransforms(config: WebhookTransformConfig): void;
+  addWebhookTransformation(transformation: WebhookTransformation): void;
+  magdagdagNgTransformation(transformation: WebhookTransformation): void;
+  removeWebhookTransformation(transformationID: string): void;
+  updateWebhookTransformation(transformationID: string, updates: Partial<WebhookTransformation>): void;
+  getWebhookTransformations(): WebhookTransformation[];
+  kuninAngMgaTransformation(): WebhookTransformation[];
+  testWebhookTransformation(transformationID: string, testPayload: any): TransformationResult;
+  enableWebhookTransformation(transformationID: string): void;
+  disableWebhookTransformation(transformationID: string): void;
 }
 
 // Two-Factor Authentication Types
@@ -1269,4 +1351,383 @@ export interface BridgeStats {
   messagesReceived: number;
   errors: number;
   lastActivity: number;
+}
+
+// ==================== VOICE/VIDEO CALL TYPES ====================
+export interface CallSession {
+  callID: string;
+  type: 'voice' | 'video';
+  threadID: string;
+  participants: CallParticipant[];
+  status: 'ringing' | 'active' | 'ended' | 'missed' | 'declined';
+  startTime: number;
+  endTime?: number;
+  duration?: number;
+  initiatorID: string;
+  quality: CallQuality;
+  screenShare?: ScreenShareSession;
+  encryption?: boolean;
+}
+
+export interface CallParticipant {
+  userID: string;
+  userName: string;
+  joinedAt: number;
+  leftAt?: number;
+  isMuted: boolean;
+  isVideoOn: boolean;
+  isScreenSharing: boolean;
+  connectionQuality: 'excellent' | 'good' | 'fair' | 'poor';
+}
+
+export interface CallQuality {
+  bitrate: number;
+  packetLoss: number;
+  latency: number;
+  resolution?: string;
+  frameRate?: number;
+}
+
+export interface CallOptions {
+  type: 'voice' | 'video';
+  encrypted?: boolean;
+  maxParticipants?: number;
+  recordCall?: boolean;
+  timeout?: number;
+}
+
+export interface CallCallback {
+  (event: CallEvent): void;
+}
+
+export interface CallEvent {
+  type: 'participant_joined' | 'participant_left' | 'mute_changed' | 'video_changed' | 'quality_changed' | 'screen_share_started' | 'screen_share_ended' | 'call_ended';
+  callID: string;
+  participantID?: string;
+  data?: any;
+  timestamp: number;
+}
+
+// ==================== SCREEN SHARING TYPES ====================
+export interface ScreenShareSession {
+  sessionID: string;
+  callID: string;
+  sharerID: string;
+  status: 'active' | 'paused' | 'ended';
+  startTime: number;
+  endTime?: number;
+  quality: ScreenShareQuality;
+  viewerCount: number;
+}
+
+export interface ScreenShareQuality {
+  resolution: string;
+  frameRate: number;
+  bitrate: number;
+}
+
+export interface ScreenShareOptions {
+  quality?: 'low' | 'medium' | 'high' | 'auto';
+  audio?: boolean;
+  optimizeFor?: 'motion' | 'detail';
+}
+
+// ==================== AI CONTENT MODERATION TYPES ====================
+export interface ModerationConfig {
+  enabled: boolean;
+  provider?: 'builtin' | 'openai' | 'perspective' | 'custom';
+  apiKey?: string;
+  sensitivity: 'low' | 'medium' | 'high' | 'strict';
+  categories: ModerationCategory[];
+  actions: ModerationAction[];
+  autoModerate?: boolean;
+  notifyAdmins?: boolean;
+  logAll?: boolean;
+  customRules?: ModerationRule[];
+}
+
+export type ModerationCategory = 
+  | 'hate_speech'
+  | 'harassment'
+  | 'violence'
+  | 'sexual_content'
+  | 'self_harm'
+  | 'spam'
+  | 'scam'
+  | 'misinformation'
+  | 'profanity'
+  | 'personal_info'
+  | 'illegal_content';
+
+export interface ModerationRule {
+  id: string;
+  name: string;
+  type: 'keyword' | 'regex' | 'ai' | 'custom';
+  pattern?: string;
+  category: ModerationCategory;
+  action: ModerationActionType;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  enabled: boolean;
+}
+
+export type ModerationActionType = 'flag' | 'delete' | 'warn' | 'mute' | 'ban' | 'quarantine' | 'notify';
+
+export interface ModerationAction {
+  category: ModerationCategory;
+  action: ModerationActionType;
+  threshold: number;
+}
+
+export interface ModerationResult {
+  id: string;
+  messageID: string;
+  threadID: string;
+  senderID: string;
+  content: string;
+  flagged: boolean;
+  categories: ModerationCategoryResult[];
+  overallScore: number;
+  action: ModerationActionType | null;
+  actionTaken: boolean;
+  timestamp: number;
+  reviewedBy?: string;
+  reviewedAt?: number;
+  status: 'pending' | 'approved' | 'rejected' | 'auto_resolved';
+}
+
+export interface ModerationCategoryResult {
+  category: ModerationCategory;
+  score: number;
+  flagged: boolean;
+  details?: string;
+}
+
+export interface ModerationStats {
+  totalChecked: number;
+  totalFlagged: number;
+  totalApproved: number;
+  totalRejected: number;
+  byCategory: Record<ModerationCategory, number>;
+  byAction: Record<ModerationActionType, number>;
+  avgProcessingTime: number;
+  falsePositiveRate: number;
+}
+
+export interface ModerationQueue {
+  items: ModerationResult[];
+  totalCount: number;
+  pendingCount: number;
+}
+
+// ==================== END-TO-END ENCRYPTION TYPES ====================
+export interface EncryptionConfig {
+  enabled: boolean;
+  algorithm: 'aes-256-gcm' | 'chacha20-poly1305';
+  keyExchange: 'ecdh' | 'x25519';
+  autoRotateKeys: boolean;
+  rotationInterval?: number;
+  verifyIdentity?: boolean;
+}
+
+export interface EncryptionKeyPair {
+  publicKey: string;
+  privateKey: string;
+  createdAt: number;
+  expiresAt?: number;
+  keyId: string;
+}
+
+export interface EncryptedThread {
+  threadID: string;
+  enabled: boolean;
+  keyPair: EncryptionKeyPair;
+  participantKeys: Record<string, string>;
+  lastRotation: number;
+  verificationStatus: 'pending' | 'verified' | 'failed';
+}
+
+export interface EncryptedPayload {
+  ciphertext: string;
+  nonce: string;
+  tag: string;
+  keyId: string;
+  timestamp: number;
+}
+
+export interface EncryptionStatus {
+  threadID: string;
+  enabled: boolean;
+  verified: boolean;
+  lastKeyRotation: number;
+  participantCount: number;
+  allParticipantsVerified: boolean;
+}
+
+// ==================== BOT MARKETPLACE TYPES ====================
+export interface BotMarketplaceConfig {
+  enabled: boolean;
+  allowExternalBots?: boolean;
+  maxInstalledBots?: number;
+  autoUpdate?: boolean;
+  sandboxMode?: boolean;
+}
+
+export interface BotListing {
+  id: string;
+  name: string;
+  description: string;
+  author: string;
+  authorID: string;
+  version: string;
+  category: BotCategory;
+  capabilities: BotCapability[];
+  rating: number;
+  reviewCount: number;
+  installCount: number;
+  price: number;
+  currency: string;
+  verified: boolean;
+  featured: boolean;
+  iconUrl: string;
+  screenshots: string[];
+  tags: string[];
+  createdAt: number;
+  updatedAt: number;
+  permissions: BotPermission[];
+}
+
+export type BotCategory = 
+  | 'productivity'
+  | 'entertainment'
+  | 'moderation'
+  | 'analytics'
+  | 'games'
+  | 'utilities'
+  | 'social'
+  | 'education'
+  | 'business'
+  | 'other';
+
+export type BotCapability = 
+  | 'messaging'
+  | 'commands'
+  | 'reactions'
+  | 'media'
+  | 'moderation'
+  | 'analytics'
+  | 'scheduling'
+  | 'webhooks'
+  | 'ai'
+  | 'games';
+
+export type BotPermission = 
+  | 'read_messages'
+  | 'send_messages'
+  | 'manage_threads'
+  | 'manage_members'
+  | 'access_user_info'
+  | 'access_analytics'
+  | 'manage_settings'
+  | 'external_requests';
+
+export interface InstalledBot {
+  id: string;
+  botID: string;
+  name: string;
+  version: string;
+  installedAt: number;
+  updatedAt: number;
+  enabled: boolean;
+  config: Record<string, any>;
+  threads: string[];
+  stats: BotStats;
+}
+
+export interface BotStats {
+  commandsExecuted: number;
+  messagesProcessed: number;
+  errorsCount: number;
+  lastActive: number;
+  uptime: number;
+}
+
+export interface BotReview {
+  id: string;
+  botID: string;
+  userID: string;
+  userName: string;
+  rating: number;
+  review: string;
+  createdAt: number;
+  helpful: number;
+  reported: boolean;
+}
+
+export interface BotSearchOptions {
+  query?: string;
+  category?: BotCategory;
+  capabilities?: BotCapability[];
+  minRating?: number;
+  maxPrice?: number;
+  verified?: boolean;
+  sortBy?: 'rating' | 'installs' | 'newest' | 'price';
+  limit?: number;
+  offset?: number;
+}
+
+// ==================== CUSTOM WEBHOOK TRANSFORMATION TYPES ====================
+export interface WebhookTransformConfig {
+  enabled: boolean;
+  transformations: WebhookTransformation[];
+  errorHandling: 'skip' | 'abort' | 'fallback';
+  fallbackPayload?: any;
+  logging?: boolean;
+}
+
+export interface WebhookTransformation {
+  id: string;
+  name: string;
+  webhookID?: string;
+  eventTypes?: WebhookEventType[];
+  priority: number;
+  enabled: boolean;
+  type: 'map' | 'filter' | 'enrich' | 'custom';
+  config: TransformationConfig;
+}
+
+export interface TransformationConfig {
+  mappings?: FieldMapping[];
+  filters?: TransformFilter[];
+  enrichments?: Enrichment[];
+  customFunction?: string;
+  template?: string;
+}
+
+export interface FieldMapping {
+  source: string;
+  target: string;
+  transform?: 'uppercase' | 'lowercase' | 'trim' | 'hash' | 'mask' | 'custom';
+  defaultValue?: any;
+}
+
+export interface TransformFilter {
+  field: string;
+  operator: 'eq' | 'neq' | 'gt' | 'lt' | 'contains' | 'matches' | 'exists';
+  value: any;
+  action: 'include' | 'exclude';
+}
+
+export interface Enrichment {
+  field: string;
+  source: 'user_info' | 'thread_info' | 'timestamp' | 'custom';
+  value?: any;
+}
+
+export interface TransformationResult {
+  transformationID: string;
+  success: boolean;
+  originalPayload: any;
+  transformedPayload: any;
+  error?: string;
+  processingTime: number;
 }

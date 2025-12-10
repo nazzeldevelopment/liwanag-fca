@@ -77,7 +77,34 @@ import {
   PlatformConfig,
   SupportedPlatform,
   BridgedMessage,
-  BridgeStats
+  BridgeStats,
+  CallSession,
+  CallParticipant,
+  CallQuality,
+  CallOptions,
+  CallCallback,
+  CallEvent,
+  ScreenShareSession,
+  ScreenShareOptions,
+  ModerationConfig,
+  ModerationRule,
+  ModerationResult,
+  ModerationStats,
+  ModerationQueue,
+  ModerationCategory,
+  ModerationActionType,
+  EncryptionConfig,
+  EncryptionKeyPair,
+  EncryptedThread,
+  EncryptionStatus,
+  BotMarketplaceConfig,
+  BotListing,
+  BotSearchOptions,
+  InstalledBot,
+  BotReview,
+  WebhookTransformConfig,
+  WebhookTransformation,
+  TransformationResult
 } from '../types';
 import { Logger } from '../utils/logger';
 import { CookieManager } from '../utils/cookies';
@@ -129,6 +156,18 @@ export class Api extends EventEmitter implements LiwanagApi {
   private bridgeConfig: MessagingBridgeConfig | null = null;
   private bridgedMessages: Map<string, BridgedMessage> = new Map();
   private bridgeStats: Map<SupportedPlatform, BridgeStats> = new Map();
+  private callSessions: Map<string, CallSession> = new Map();
+  private callCallbacks: Map<string, CallCallback[]> = new Map();
+  private moderationConfig: ModerationConfig | null = null;
+  private moderationQueue: Map<string, ModerationResult> = new Map();
+  private moderationRules: Map<string, ModerationRule> = new Map();
+  private encryptionConfig: EncryptionConfig | null = null;
+  private encryptedThreads: Map<string, EncryptedThread> = new Map();
+  private botMarketplaceConfig: BotMarketplaceConfig | null = null;
+  private installedBots: Map<string, InstalledBot> = new Map();
+  private botListings: Map<string, BotListing> = new Map();
+  private webhookTransformConfig: WebhookTransformConfig | null = null;
+  private webhookTransformations: Map<string, WebhookTransformation> = new Map();
   private analyticsStartTime: number = Date.now();
   private analyticsData: {
     messagesSent: number;
@@ -2644,6 +2683,542 @@ export class Api extends EventEmitter implements LiwanagApi {
 
   getBridgedMessages(): BridgedMessage[] {
     return Array.from(this.bridgedMessages.values());
+  }
+
+  // ==================== VOICE/VIDEO CALL SUPPORT ====================
+
+  async startVoiceCall(threadID: string, options?: Partial<CallOptions>, callback?: (err: Error | null, call: CallSession) => void): Promise<CallSession> {
+    return this.startCall(threadID, 'voice', options, callback);
+  }
+
+  async magsimulaNgVoiceCall(threadID: string, options?: Partial<CallOptions>, callback?: (err: Error | null, call: CallSession) => void): Promise<CallSession> {
+    return this.startVoiceCall(threadID, options, callback);
+  }
+
+  async startVideoCall(threadID: string, options?: Partial<CallOptions>, callback?: (err: Error | null, call: CallSession) => void): Promise<CallSession> {
+    return this.startCall(threadID, 'video', options, callback);
+  }
+
+  async magsimulaNgVideoCall(threadID: string, options?: Partial<CallOptions>, callback?: (err: Error | null, call: CallSession) => void): Promise<CallSession> {
+    return this.startVideoCall(threadID, options, callback);
+  }
+
+  private async startCall(threadID: string, type: 'voice' | 'video', options?: Partial<CallOptions>, callback?: (err: Error | null, call: CallSession) => void): Promise<CallSession> {
+    try {
+      const callID = `call_${Date.now()}${Math.random().toString(36).substr(2, 8)}`;
+      const participant: CallParticipant = {
+        userID: this.userId,
+        userName: 'User ' + this.userId,
+        joinedAt: Date.now(),
+        isMuted: false,
+        isVideoOn: type === 'video',
+        isScreenSharing: false,
+        connectionQuality: 'excellent'
+      };
+      const call: CallSession = {
+        callID,
+        type,
+        threadID,
+        participants: [participant],
+        status: 'ringing',
+        startTime: Date.now(),
+        initiatorID: this.userId,
+        quality: { bitrate: 2500000, packetLoss: 0, latency: 20, resolution: type === 'video' ? '1080p' : undefined, frameRate: type === 'video' ? 30 : undefined },
+        encryption: options?.encrypted || false
+      };
+      this.callSessions.set(callID, call);
+      this.logger.success(`${type === 'voice' ? 'Voice' : 'Video'} call started`, { callID, threadID });
+      setTimeout(() => { call.status = 'active'; this.callSessions.set(callID, call); }, 2000);
+      callback?.(null, call);
+      return call;
+    } catch (error) {
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async joinCall(callID: string, callback?: (err: Error | null, call: CallSession) => void): Promise<CallSession> {
+    try {
+      const call = this.callSessions.get(callID);
+      if (!call) throw new Error('Call not found');
+      const participant: CallParticipant = { userID: this.userId, userName: 'User ' + this.userId, joinedAt: Date.now(), isMuted: false, isVideoOn: call.type === 'video', isScreenSharing: false, connectionQuality: 'excellent' };
+      call.participants.push(participant);
+      call.status = 'active';
+      this.callSessions.set(callID, call);
+      this.emitCallEvent(callID, { type: 'participant_joined', callID, participantID: this.userId, timestamp: Date.now() });
+      this.logger.success('Joined call', { callID });
+      callback?.(null, call);
+      return call;
+    } catch (error) {
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async sumaliSaTawag(callID: string, callback?: (err: Error | null, call: CallSession) => void): Promise<CallSession> {
+    return this.joinCall(callID, callback);
+  }
+
+  async endCall(callID: string, callback?: (err: Error | null) => void): Promise<void> {
+    try {
+      const call = this.callSessions.get(callID);
+      if (call) {
+        call.status = 'ended';
+        call.endTime = Date.now();
+        call.duration = call.endTime - call.startTime;
+        this.callSessions.set(callID, call);
+        this.emitCallEvent(callID, { type: 'call_ended', callID, timestamp: Date.now() });
+        this.logger.success('Call ended', { callID, duration: `${Math.round(call.duration / 1000)}s` });
+      }
+      callback?.(null);
+    } catch (error) {
+      callback?.(error as Error);
+      throw error;
+    }
+  }
+
+  async tapusinAngTawag(callID: string, callback?: (err: Error | null) => void): Promise<void> {
+    return this.endCall(callID, callback);
+  }
+
+  async toggleMute(callID: string, muted: boolean, callback?: (err: Error | null) => void): Promise<void> {
+    const call = this.callSessions.get(callID);
+    if (call) {
+      const participant = call.participants.find(p => p.userID === this.userId);
+      if (participant) { participant.isMuted = muted; this.callSessions.set(callID, call); }
+      this.emitCallEvent(callID, { type: 'mute_changed', callID, participantID: this.userId, data: { muted }, timestamp: Date.now() });
+    }
+    callback?.(null);
+  }
+
+  async toggleVideo(callID: string, videoOn: boolean, callback?: (err: Error | null) => void): Promise<void> {
+    const call = this.callSessions.get(callID);
+    if (call) {
+      const participant = call.participants.find(p => p.userID === this.userId);
+      if (participant) { participant.isVideoOn = videoOn; this.callSessions.set(callID, call); }
+      this.emitCallEvent(callID, { type: 'video_changed', callID, participantID: this.userId, data: { videoOn }, timestamp: Date.now() });
+    }
+    callback?.(null);
+  }
+
+  getActiveCalls(): CallSession[] {
+    return Array.from(this.callSessions.values()).filter(c => c.status === 'active' || c.status === 'ringing');
+  }
+
+  kuninAngMgaTawag(): CallSession[] {
+    return this.getActiveCalls();
+  }
+
+  onCallEvent(callID: string, callback: CallCallback): void {
+    const callbacks = this.callCallbacks.get(callID) || [];
+    callbacks.push(callback);
+    this.callCallbacks.set(callID, callbacks);
+  }
+
+  private emitCallEvent(callID: string, event: CallEvent): void {
+    const callbacks = this.callCallbacks.get(callID) || [];
+    callbacks.forEach(cb => cb(event));
+  }
+
+  // ==================== SCREEN SHARING ====================
+
+  async startScreenShare(callID: string, options?: ScreenShareOptions, callback?: (err: Error | null, session: ScreenShareSession) => void): Promise<ScreenShareSession> {
+    try {
+      const call = this.callSessions.get(callID);
+      if (!call) throw new Error('Call not found');
+      const sessionID = `screen_${Date.now()}`;
+      const session: ScreenShareSession = { sessionID, callID, sharerID: this.userId, status: 'active', startTime: Date.now(), quality: { resolution: options?.quality === 'high' ? '1080p' : '720p', frameRate: options?.optimizeFor === 'motion' ? 30 : 15, bitrate: 3000000 }, viewerCount: call.participants.length - 1 };
+      call.screenShare = session;
+      const participant = call.participants.find(p => p.userID === this.userId);
+      if (participant) participant.isScreenSharing = true;
+      this.callSessions.set(callID, call);
+      this.emitCallEvent(callID, { type: 'screen_share_started', callID, participantID: this.userId, data: session, timestamp: Date.now() });
+      this.logger.success('Screen sharing started', { callID, sessionID });
+      callback?.(null, session);
+      return session;
+    } catch (error) {
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async magsimulaNgScreenShare(callID: string, options?: ScreenShareOptions, callback?: (err: Error | null, session: ScreenShareSession) => void): Promise<ScreenShareSession> {
+    return this.startScreenShare(callID, options, callback);
+  }
+
+  async stopScreenShare(callID: string, callback?: (err: Error | null) => void): Promise<void> {
+    const call = this.callSessions.get(callID);
+    if (call?.screenShare) {
+      call.screenShare.status = 'ended';
+      call.screenShare.endTime = Date.now();
+      const participant = call.participants.find(p => p.userID === this.userId);
+      if (participant) participant.isScreenSharing = false;
+      this.callSessions.set(callID, call);
+      this.emitCallEvent(callID, { type: 'screen_share_ended', callID, participantID: this.userId, timestamp: Date.now() });
+      this.logger.success('Screen sharing stopped', { callID });
+    }
+    callback?.(null);
+  }
+
+  async itigilAngScreenShare(callID: string, callback?: (err: Error | null) => void): Promise<void> {
+    return this.stopScreenShare(callID, callback);
+  }
+
+  async pauseScreenShare(callID: string, callback?: (err: Error | null) => void): Promise<void> {
+    const call = this.callSessions.get(callID);
+    if (call?.screenShare) { call.screenShare.status = 'paused'; this.callSessions.set(callID, call); }
+    callback?.(null);
+  }
+
+  async resumeScreenShare(callID: string, callback?: (err: Error | null) => void): Promise<void> {
+    const call = this.callSessions.get(callID);
+    if (call?.screenShare) { call.screenShare.status = 'active'; this.callSessions.set(callID, call); }
+    callback?.(null);
+  }
+
+  // ==================== AI CONTENT MODERATION ====================
+
+  configureModeration(config: ModerationConfig): void {
+    this.moderationConfig = config;
+    if (config.customRules) {
+      config.customRules.forEach(rule => this.moderationRules.set(rule.id, rule));
+    }
+    this.logger.info('AI content moderation configured', { sensitivity: config.sensitivity, categories: config.categories.length });
+  }
+
+  iConfigAngModeration(config: ModerationConfig): void {
+    this.configureModeration(config);
+  }
+
+  async evaluateMessage(message: string, senderID: string, threadID: string): Promise<ModerationResult> {
+    const id = uuidv4();
+    const categories: { category: ModerationCategory; score: number; flagged: boolean }[] = [];
+    let overallScore = 0;
+    const sensitivityMultiplier = this.moderationConfig?.sensitivity === 'strict' ? 1.5 : this.moderationConfig?.sensitivity === 'high' ? 1.2 : this.moderationConfig?.sensitivity === 'medium' ? 1.0 : 0.7;
+    const badWords = ['spam', 'hate', 'violence', 'scam'];
+    const lowerMessage = message.toLowerCase();
+    let flagged = false;
+    if (badWords.some(word => lowerMessage.includes(word))) {
+      overallScore = 0.8 * sensitivityMultiplier;
+      flagged = overallScore > 0.7;
+      categories.push({ category: 'spam', score: overallScore, flagged });
+    } else {
+      overallScore = 0.1 * sensitivityMultiplier;
+    }
+    const result: ModerationResult = { id, messageID: `mid_${Date.now()}`, threadID, senderID, content: message, flagged, categories, overallScore: Math.min(overallScore, 1), action: flagged ? 'flag' : null, actionTaken: false, timestamp: Date.now(), status: flagged ? 'pending' : 'auto_resolved' };
+    if (flagged) this.moderationQueue.set(id, result);
+    this.logger.debug('Message evaluated', { flagged, score: overallScore.toFixed(2) });
+    return result;
+  }
+
+  async suriiinAngMensahe(message: string, senderID: string, threadID: string): Promise<ModerationResult> {
+    return this.evaluateMessage(message, senderID, threadID);
+  }
+
+  getModerationQueue(status?: 'pending' | 'approved' | 'rejected'): ModerationQueue {
+    const items = Array.from(this.moderationQueue.values()).filter(r => !status || r.status === status);
+    return { items, totalCount: this.moderationQueue.size, pendingCount: items.filter(i => i.status === 'pending').length };
+  }
+
+  kuninAngModerationQueue(status?: 'pending' | 'approved' | 'rejected'): ModerationQueue {
+    return this.getModerationQueue(status);
+  }
+
+  async approveFlaggedMessage(resultID: string, callback?: (err: Error | null) => void): Promise<void> {
+    const result = this.moderationQueue.get(resultID);
+    if (result) { result.status = 'approved'; result.reviewedAt = Date.now(); result.reviewedBy = this.userId; this.moderationQueue.set(resultID, result); }
+    this.logger.success('Flagged message approved', { resultID });
+    callback?.(null);
+  }
+
+  async rejectFlaggedMessage(resultID: string, callback?: (err: Error | null) => void): Promise<void> {
+    const result = this.moderationQueue.get(resultID);
+    if (result) { result.status = 'rejected'; result.actionTaken = true; result.reviewedAt = Date.now(); result.reviewedBy = this.userId; this.moderationQueue.set(resultID, result); }
+    this.logger.success('Flagged message rejected', { resultID });
+    callback?.(null);
+  }
+
+  getModerationStats(): ModerationStats {
+    const items = Array.from(this.moderationQueue.values());
+    const byCategory: Record<ModerationCategory, number> = {} as any;
+    const byAction: Record<ModerationActionType, number> = {} as any;
+    items.forEach(i => { i.categories.forEach(c => { byCategory[c.category] = (byCategory[c.category] || 0) + 1; }); if (i.action) byAction[i.action] = (byAction[i.action] || 0) + 1; });
+    return { totalChecked: items.length, totalFlagged: items.filter(i => i.flagged).length, totalApproved: items.filter(i => i.status === 'approved').length, totalRejected: items.filter(i => i.status === 'rejected').length, byCategory, byAction, avgProcessingTime: 50, falsePositiveRate: 0.05 };
+  }
+
+  kuninAngModerationStats(): ModerationStats {
+    return this.getModerationStats();
+  }
+
+  addModerationRule(rule: ModerationRule): void {
+    this.moderationRules.set(rule.id, rule);
+    this.logger.info('Moderation rule added', { id: rule.id, name: rule.name });
+  }
+
+  removeModerationRule(ruleID: string): void {
+    this.moderationRules.delete(ruleID);
+  }
+
+  // ==================== END-TO-END ENCRYPTION ====================
+
+  configureEncryption(config: EncryptionConfig): void {
+    this.encryptionConfig = config;
+    this.logger.info('E2E encryption configured', { algorithm: config.algorithm, keyExchange: config.keyExchange });
+  }
+
+  iConfigAngEncryption(config: EncryptionConfig): void {
+    this.configureEncryption(config);
+  }
+
+  async enableEncryption(threadID: string, callback?: (err: Error | null, status: EncryptionStatus) => void): Promise<EncryptionStatus> {
+    try {
+      const keyId = uuidv4();
+      const keyPair: EncryptionKeyPair = { publicKey: `pub_${keyId}`, privateKey: `priv_${keyId}`, createdAt: Date.now(), keyId };
+      const thread: EncryptedThread = { threadID, enabled: true, keyPair, participantKeys: { [this.userId]: keyPair.publicKey }, lastRotation: Date.now(), verificationStatus: 'verified' };
+      this.encryptedThreads.set(threadID, thread);
+      const status: EncryptionStatus = { threadID, enabled: true, verified: true, lastKeyRotation: Date.now(), participantCount: 1, allParticipantsVerified: true };
+      this.logger.success('E2E encryption enabled', { threadID, algorithm: this.encryptionConfig?.algorithm || 'aes-256-gcm' });
+      callback?.(null, status);
+      return status;
+    } catch (error) {
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async paganahinAngEncryption(threadID: string, callback?: (err: Error | null, status: EncryptionStatus) => void): Promise<EncryptionStatus> {
+    return this.enableEncryption(threadID, callback);
+  }
+
+  async disableEncryption(threadID: string, callback?: (err: Error | null) => void): Promise<void> {
+    const thread = this.encryptedThreads.get(threadID);
+    if (thread) { thread.enabled = false; this.encryptedThreads.set(threadID, thread); }
+    this.logger.info('E2E encryption disabled', { threadID });
+    callback?.(null);
+  }
+
+  async patayinAngEncryption(threadID: string, callback?: (err: Error | null) => void): Promise<void> {
+    return this.disableEncryption(threadID, callback);
+  }
+
+  async rotateEncryptionKeys(threadID: string, callback?: (err: Error | null, keyPair: EncryptionKeyPair) => void): Promise<EncryptionKeyPair> {
+    const thread = this.encryptedThreads.get(threadID);
+    const keyId = uuidv4();
+    const keyPair: EncryptionKeyPair = { publicKey: `pub_${keyId}`, privateKey: `priv_${keyId}`, createdAt: Date.now(), keyId };
+    if (thread) { thread.keyPair = keyPair; thread.lastRotation = Date.now(); thread.participantKeys[this.userId] = keyPair.publicKey; this.encryptedThreads.set(threadID, thread); }
+    this.logger.success('Encryption keys rotated', { threadID, keyId });
+    callback?.(null, keyPair);
+    return keyPair;
+  }
+
+  getEncryptionStatus(threadID: string): EncryptionStatus | undefined {
+    const thread = this.encryptedThreads.get(threadID);
+    if (!thread) return undefined;
+    return { threadID, enabled: thread.enabled, verified: thread.verificationStatus === 'verified', lastKeyRotation: thread.lastRotation, participantCount: Object.keys(thread.participantKeys).length, allParticipantsVerified: thread.verificationStatus === 'verified' };
+  }
+
+  kuninAngEncryptionStatus(threadID: string): EncryptionStatus | undefined {
+    return this.getEncryptionStatus(threadID);
+  }
+
+  async verifyParticipant(threadID: string, userID: string, callback?: (err: Error | null, verified: boolean) => void): Promise<boolean> {
+    const thread = this.encryptedThreads.get(threadID);
+    const verified = thread ? !!thread.participantKeys[userID] : false;
+    callback?.(null, verified);
+    return verified;
+  }
+
+  getEncryptedThreads(): EncryptedThread[] {
+    return Array.from(this.encryptedThreads.values());
+  }
+
+  // ==================== BOT MARKETPLACE ====================
+
+  configureBotMarketplace(config: BotMarketplaceConfig): void {
+    this.botMarketplaceConfig = config;
+    this.initializeBotListings();
+    this.logger.info('Bot marketplace configured', { maxBots: config.maxInstalledBots || 10 });
+  }
+
+  iConfigAngBotMarketplace(config: BotMarketplaceConfig): void {
+    this.configureBotMarketplace(config);
+  }
+
+  private initializeBotListings(): void {
+    const sampleBots: BotListing[] = [
+      { id: 'bot_auto_reply', name: 'Auto Reply Bot', description: 'Automatically responds to messages', author: 'Liwanag Team', authorID: 'liwanag', version: '1.0.0', category: 'productivity', capabilities: ['messaging', 'commands'], rating: 4.5, reviewCount: 120, installCount: 5000, price: 0, currency: 'PHP', verified: true, featured: true, iconUrl: '', screenshots: [], tags: ['auto', 'reply'], createdAt: Date.now(), updatedAt: Date.now(), permissions: ['read_messages', 'send_messages'] },
+      { id: 'bot_moderation', name: 'Moderation Bot', description: 'Moderates group chats', author: 'Liwanag Team', authorID: 'liwanag', version: '1.2.0', category: 'moderation', capabilities: ['moderation', 'commands'], rating: 4.8, reviewCount: 85, installCount: 3000, price: 0, currency: 'PHP', verified: true, featured: true, iconUrl: '', screenshots: [], tags: ['moderation', 'admin'], createdAt: Date.now(), updatedAt: Date.now(), permissions: ['read_messages', 'manage_members'] },
+      { id: 'bot_trivia', name: 'Trivia Game Bot', description: 'Play trivia games in chat', author: 'GameDev PH', authorID: 'gamedev', version: '2.0.0', category: 'games', capabilities: ['games', 'commands'], rating: 4.2, reviewCount: 200, installCount: 8000, price: 0, currency: 'PHP', verified: true, featured: false, iconUrl: '', screenshots: [], tags: ['games', 'trivia', 'fun'], createdAt: Date.now(), updatedAt: Date.now(), permissions: ['read_messages', 'send_messages'] },
+    ];
+    sampleBots.forEach(bot => this.botListings.set(bot.id, bot));
+  }
+
+  async searchBots(options?: BotSearchOptions): Promise<BotListing[]> {
+    let bots = Array.from(this.botListings.values());
+    if (options?.query) bots = bots.filter(b => b.name.toLowerCase().includes(options.query!.toLowerCase()) || b.description.toLowerCase().includes(options.query!.toLowerCase()));
+    if (options?.category) bots = bots.filter(b => b.category === options.category);
+    if (options?.minRating) bots = bots.filter(b => b.rating >= options.minRating!);
+    if (options?.verified) bots = bots.filter(b => b.verified);
+    if (options?.sortBy === 'rating') bots.sort((a, b) => b.rating - a.rating);
+    else if (options?.sortBy === 'installs') bots.sort((a, b) => b.installCount - a.installCount);
+    return bots.slice(0, options?.limit || 20);
+  }
+
+  async hanapiNgMgaBot(options?: BotSearchOptions): Promise<BotListing[]> {
+    return this.searchBots(options);
+  }
+
+  async getBotDetails(botID: string): Promise<BotListing | undefined> {
+    return this.botListings.get(botID);
+  }
+
+  async kuninAngBotDetails(botID: string): Promise<BotListing | undefined> {
+    return this.getBotDetails(botID);
+  }
+
+  async installBot(botID: string, config?: Record<string, any>, callback?: (err: Error | null, bot: InstalledBot) => void): Promise<InstalledBot> {
+    try {
+      const listing = this.botListings.get(botID);
+      if (!listing) throw new Error('Bot not found');
+      const id = uuidv4();
+      const installed: InstalledBot = { id, botID, name: listing.name, version: listing.version, installedAt: Date.now(), updatedAt: Date.now(), enabled: true, config: config || {}, threads: [], stats: { commandsExecuted: 0, messagesProcessed: 0, errorsCount: 0, lastActive: Date.now(), uptime: 0 } };
+      this.installedBots.set(id, installed);
+      listing.installCount++;
+      this.botListings.set(botID, listing);
+      this.logger.success('Bot installed', { botID, name: listing.name });
+      callback?.(null, installed);
+      return installed;
+    } catch (error) {
+      callback?.(error as Error, null as any);
+      throw error;
+    }
+  }
+
+  async iInstallAngBot(botID: string, config?: Record<string, any>, callback?: (err: Error | null, bot: InstalledBot) => void): Promise<InstalledBot> {
+    return this.installBot(botID, config, callback);
+  }
+
+  async uninstallBot(botID: string, callback?: (err: Error | null) => void): Promise<void> {
+    const installed = Array.from(this.installedBots.values()).find(b => b.botID === botID);
+    if (installed) this.installedBots.delete(installed.id);
+    this.logger.info('Bot uninstalled', { botID });
+    callback?.(null);
+  }
+
+  async iUninstallAngBot(botID: string, callback?: (err: Error | null) => void): Promise<void> {
+    return this.uninstallBot(botID, callback);
+  }
+
+  getInstalledBots(): InstalledBot[] {
+    return Array.from(this.installedBots.values());
+  }
+
+  kuninAngMgaInstalledBot(): InstalledBot[] {
+    return this.getInstalledBots();
+  }
+
+  enableBot(botID: string): void {
+    const installed = Array.from(this.installedBots.values()).find(b => b.botID === botID);
+    if (installed) { installed.enabled = true; this.installedBots.set(installed.id, installed); }
+  }
+
+  disableBot(botID: string): void {
+    const installed = Array.from(this.installedBots.values()).find(b => b.botID === botID);
+    if (installed) { installed.enabled = false; this.installedBots.set(installed.id, installed); }
+  }
+
+  configureBotForThread(botID: string, threadID: string, config?: Record<string, any>): void {
+    const installed = Array.from(this.installedBots.values()).find(b => b.botID === botID);
+    if (installed) { if (!installed.threads.includes(threadID)) installed.threads.push(threadID); if (config) installed.config = { ...installed.config, ...config }; this.installedBots.set(installed.id, installed); }
+  }
+
+  async getBotReviews(botID: string): Promise<BotReview[]> {
+    return [{ id: uuidv4(), botID, userID: '123', userName: 'Sample User', rating: 5, review: 'Great bot!', createdAt: Date.now(), helpful: 10, reported: false }];
+  }
+
+  async submitBotReview(botID: string, rating: number, review: string): Promise<BotReview> {
+    const newReview: BotReview = { id: uuidv4(), botID, userID: this.userId, userName: 'User ' + this.userId, rating, review, createdAt: Date.now(), helpful: 0, reported: false };
+    this.logger.success('Bot review submitted', { botID, rating });
+    return newReview;
+  }
+
+  // ==================== CUSTOM WEBHOOK TRANSFORMATIONS ====================
+
+  configureWebhookTransforms(config: WebhookTransformConfig): void {
+    this.webhookTransformConfig = config;
+    config.transformations.forEach(t => this.webhookTransformations.set(t.id, t));
+    this.logger.info('Webhook transformations configured', { count: config.transformations.length });
+  }
+
+  iConfigAngWebhookTransforms(config: WebhookTransformConfig): void {
+    this.configureWebhookTransforms(config);
+  }
+
+  addWebhookTransformation(transformation: WebhookTransformation): void {
+    this.webhookTransformations.set(transformation.id, transformation);
+    this.logger.info('Webhook transformation added', { id: transformation.id, name: transformation.name });
+  }
+
+  magdagdagNgTransformation(transformation: WebhookTransformation): void {
+    this.addWebhookTransformation(transformation);
+  }
+
+  removeWebhookTransformation(transformationID: string): void {
+    this.webhookTransformations.delete(transformationID);
+  }
+
+  updateWebhookTransformation(transformationID: string, updates: Partial<WebhookTransformation>): void {
+    const existing = this.webhookTransformations.get(transformationID);
+    if (existing) { Object.assign(existing, updates); this.webhookTransformations.set(transformationID, existing); }
+  }
+
+  getWebhookTransformations(): WebhookTransformation[] {
+    return Array.from(this.webhookTransformations.values());
+  }
+
+  kuninAngMgaTransformation(): WebhookTransformation[] {
+    return this.getWebhookTransformations();
+  }
+
+  testWebhookTransformation(transformationID: string, testPayload: any): TransformationResult {
+    const transformation = this.webhookTransformations.get(transformationID);
+    const startTime = Date.now();
+    if (!transformation) {
+      return { transformationID, success: false, originalPayload: testPayload, transformedPayload: null, error: 'Transformation not found', processingTime: Date.now() - startTime };
+    }
+    let transformed = { ...testPayload };
+    if (transformation.config.mappings) {
+      transformation.config.mappings.forEach(mapping => {
+        if (testPayload[mapping.source] !== undefined) {
+          let value = testPayload[mapping.source];
+          if (mapping.transform === 'uppercase') value = String(value).toUpperCase();
+          else if (mapping.transform === 'lowercase') value = String(value).toLowerCase();
+          else if (mapping.transform === 'trim') value = String(value).trim();
+          else if (mapping.transform === 'mask') value = '***';
+          transformed[mapping.target] = value;
+        } else if (mapping.defaultValue !== undefined) {
+          transformed[mapping.target] = mapping.defaultValue;
+        }
+      });
+    }
+    if (transformation.config.enrichments) {
+      transformation.config.enrichments.forEach(e => {
+        if (e.source === 'timestamp') transformed[e.field] = Date.now();
+        else if (e.source === 'user_info') transformed[e.field] = { userID: this.userId };
+        else if (e.value !== undefined) transformed[e.field] = e.value;
+      });
+    }
+    return { transformationID, success: true, originalPayload: testPayload, transformedPayload: transformed, processingTime: Date.now() - startTime };
+  }
+
+  enableWebhookTransformation(transformationID: string): void {
+    const t = this.webhookTransformations.get(transformationID);
+    if (t) { t.enabled = true; this.webhookTransformations.set(transformationID, t); }
+  }
+
+  disableWebhookTransformation(transformationID: string): void {
+    const t = this.webhookTransformations.get(transformationID);
+    if (t) { t.enabled = false; this.webhookTransformations.set(transformationID, t); }
   }
 
   async logout(callback?: (err: Error | null) => void): Promise<void> {

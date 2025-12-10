@@ -814,7 +814,288 @@ Supported Platforms: Telegram, Discord, Slack, WhatsApp, Viber, LINE, Messenger
 
 ---
 
-## 🌟 New Filipino Functions (v0.4.0)
+## 📞 Voice & Video Calls
+
+```typescript
+// Start a voice call
+const voiceCall = await api.startVoiceCall(threadID, { encrypted: true });
+await api.magsimulaNgVoiceCall(threadID, options);
+
+// Start a video call
+const videoCall = await api.startVideoCall(threadID);
+await api.magsimulaNgVideoCall(threadID, options);
+
+// Join an existing call
+await api.joinCall(callID);
+await api.sumaliSaTawag(callID);
+
+// Call controls
+await api.toggleMute(callID, true);   // Mute
+await api.toggleVideo(callID, false); // Turn off video
+
+// Listen for call events
+api.onCallEvent(callID, (event) => {
+  console.log('Event:', event.type);
+  console.log('Participant:', event.participantID);
+});
+
+// End the call
+await api.endCall(callID);
+await api.tapusinAngTawag(callID);
+
+// Get active calls
+const calls = api.getActiveCalls();
+await api.kuninAngMgaTawag();
+```
+
+---
+
+## 🖥️ Screen Sharing
+
+```typescript
+// Start screen sharing during a call
+const screenShare = await api.startScreenShare(callID, {
+  quality: 'high',
+  audio: true,
+  optimizeFor: 'detail'
+});
+await api.magsimulaNgScreenShare(callID, options);
+
+// Pause/Resume screen sharing
+await api.pauseScreenShare(callID);
+await api.resumeScreenShare(callID);
+
+// Stop screen sharing
+await api.stopScreenShare(callID);
+await api.itigilAngScreenShare(callID);
+```
+
+---
+
+## 🤖 AI Content Moderation
+
+```typescript
+// Configure moderation
+api.configureModeration({
+  enabled: true,
+  provider: 'builtin',
+  sensitivity: 'medium',
+  categories: ['hate_speech', 'spam', 'harassment'],
+  actions: [
+    { category: 'hate_speech', action: 'delete', threshold: 0.8 },
+    { category: 'spam', action: 'flag', threshold: 0.7 }
+  ],
+  autoModerate: true,
+  notifyAdmins: true
+});
+api.iConfigAngModeration(config);
+
+// Evaluate a message
+const result = await api.evaluateMessage(message, senderID, threadID);
+await api.suriiinAngMensahe(message, senderID, threadID);
+console.log(result.flagged);      // true/false
+console.log(result.overallScore); // 0.0 - 1.0
+console.log(result.categories);   // Detected categories
+
+// Get moderation queue
+const queue = api.getModerationQueue('pending');
+await api.kuninAngModerationQueue('pending');
+
+// Review flagged content
+await api.approveFlaggedMessage(resultID);
+await api.rejectFlaggedMessage(resultID);
+
+// Get moderation statistics
+const stats = api.getModerationStats();
+await api.kuninAngModerationStats();
+
+// Add custom moderation rule
+api.addModerationRule({
+  id: 'no-links',
+  name: 'Block External Links',
+  type: 'regex',
+  pattern: 'https?://[^\\s]+',
+  category: 'spam',
+  action: 'flag',
+  severity: 'medium',
+  enabled: true
+});
+```
+
+---
+
+## 🔐 End-to-End Encryption
+
+```typescript
+// Configure encryption
+api.configureEncryption({
+  enabled: true,
+  algorithm: 'aes-256-gcm',
+  keyExchange: 'x25519',
+  autoRotateKeys: true,
+  rotationInterval: 24 * 60 * 60 * 1000 // 24 hours
+});
+api.iConfigAngEncryption(config);
+
+// Enable encryption for a thread
+const status = await api.enableEncryption(threadID);
+await api.paganahinAngEncryption(threadID);
+console.log(status.enabled);   // true
+console.log(status.verified);  // true
+
+// Check encryption status
+const encStatus = api.getEncryptionStatus(threadID);
+await api.kuninAngEncryptionStatus(threadID);
+
+// Rotate encryption keys
+const newKeys = await api.rotateEncryptionKeys(threadID);
+
+// Verify participant
+const verified = await api.verifyParticipant(threadID, userID);
+
+// Get all encrypted threads
+const threads = api.getEncryptedThreads();
+
+// Disable encryption
+await api.disableEncryption(threadID);
+await api.patayinAngEncryption(threadID);
+```
+
+---
+
+## 🏪 Bot Marketplace
+
+```typescript
+// Configure marketplace
+api.configureBotMarketplace({
+  enabled: true,
+  maxInstalledBots: 10,
+  autoUpdate: true,
+  sandboxMode: false
+});
+api.iConfigAngBotMarketplace(config);
+
+// Search for bots
+const bots = await api.searchBots({
+  query: 'moderation',
+  category: 'moderation',
+  minRating: 4.0,
+  verified: true,
+  sortBy: 'rating'
+});
+await api.hanapiNgMgaBot(options);
+
+// Get bot details
+const botDetails = await api.getBotDetails(botID);
+await api.kuninAngBotDetails(botID);
+
+// Install a bot
+const installed = await api.installBot(botID, { autoReply: true });
+await api.iInstallAngBot(botID, config);
+
+// Get installed bots
+const myBots = api.getInstalledBots();
+await api.kuninAngMgaInstalledBot();
+
+// Enable/disable bot
+api.enableBot(botID);
+api.disableBot(botID);
+
+// Configure bot for specific thread
+api.configureBotForThread(botID, threadID, { prefix: '!' });
+
+// Submit a review
+await api.submitBotReview(botID, 5, 'Great bot!');
+
+// Uninstall bot
+await api.uninstallBot(botID);
+await api.iUninstallAngBot(botID);
+```
+
+---
+
+## 🔄 Webhook Transformations
+
+```typescript
+// Configure webhook transformations
+api.configureWebhookTransforms({
+  enabled: true,
+  transformations: [],
+  errorHandling: 'skip',
+  logging: true
+});
+api.iConfigAngWebhookTransforms(config);
+
+// Add a transformation
+api.addWebhookTransformation({
+  id: 'uppercase-sender',
+  name: 'Uppercase Sender Name',
+  priority: 1,
+  enabled: true,
+  type: 'map',
+  config: {
+    mappings: [
+      { source: 'senderName', target: 'senderName', transform: 'uppercase' },
+      { source: 'message', target: 'content' }
+    ],
+    enrichments: [
+      { field: 'processedAt', source: 'timestamp' }
+    ]
+  }
+});
+api.magdagdagNgTransformation(transformation);
+
+// Test transformation
+const result = api.testWebhookTransformation('uppercase-sender', {
+  senderName: 'john doe',
+  message: 'Hello!'
+});
+console.log(result.transformedPayload);
+// { senderName: 'JOHN DOE', content: 'Hello!', processedAt: 1702... }
+
+// Get all transformations
+const transforms = api.getWebhookTransformations();
+await api.kuninAngMgaTransformation();
+
+// Enable/disable transformation
+api.enableWebhookTransformation('uppercase-sender');
+api.disableWebhookTransformation('uppercase-sender');
+```
+
+---
+
+## 🌟 New Filipino Functions (v0.5.0)
+
+| Tagalog Method | English Equivalent | Description |
+|----------------|-------------------|-------------|
+| `magsimulaNgVoiceCall()` | `startVoiceCall()` | Start voice call |
+| `magsimulaNgVideoCall()` | `startVideoCall()` | Start video call |
+| `sumaliSaTawag()` | `joinCall()` | Join call |
+| `tapusinAngTawag()` | `endCall()` | End call |
+| `kuninAngMgaTawag()` | `getActiveCalls()` | Get active calls |
+| `magsimulaNgScreenShare()` | `startScreenShare()` | Start screen share |
+| `itigilAngScreenShare()` | `stopScreenShare()` | Stop screen share |
+| `iConfigAngModeration()` | `configureModeration()` | Configure moderation |
+| `suriiinAngMensahe()` | `evaluateMessage()` | Evaluate message |
+| `kuninAngModerationQueue()` | `getModerationQueue()` | Get moderation queue |
+| `kuninAngModerationStats()` | `getModerationStats()` | Get moderation stats |
+| `iConfigAngEncryption()` | `configureEncryption()` | Configure encryption |
+| `paganahinAngEncryption()` | `enableEncryption()` | Enable encryption |
+| `patayinAngEncryption()` | `disableEncryption()` | Disable encryption |
+| `kuninAngEncryptionStatus()` | `getEncryptionStatus()` | Get encryption status |
+| `iConfigAngBotMarketplace()` | `configureBotMarketplace()` | Configure marketplace |
+| `hanapiNgMgaBot()` | `searchBots()` | Search bots |
+| `kuninAngBotDetails()` | `getBotDetails()` | Get bot details |
+| `iInstallAngBot()` | `installBot()` | Install bot |
+| `iUninstallAngBot()` | `uninstallBot()` | Uninstall bot |
+| `kuninAngMgaInstalledBot()` | `getInstalledBots()` | Get installed bots |
+| `iConfigAngWebhookTransforms()` | `configureWebhookTransforms()` | Configure transforms |
+| `magdagdagNgTransformation()` | `addWebhookTransformation()` | Add transformation |
+| `kuninAngMgaTransformation()` | `getWebhookTransformations()` | Get transformations |
+
+---
+
+## 🌟 Filipino Functions (v0.4.0)
 
 | Tagalog Method | English Equivalent | Description |
 |----------------|-------------------|-------------|

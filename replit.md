@@ -84,6 +84,32 @@ liwanag.login({ appState: require('./appstate.json') }, {}, (err, api) => {
 
 ## Recent Changes
 
+### v0.5.0 (2025-12-10)
+- Voice/Video Call Support with screen sharing
+- AI-Powered Content Moderation
+- End-to-End Encryption Options
+- Bot Marketplace Integration
+- Custom Webhook Transformations
+- Complete Tagalog method aliases for all new features
+
+### v0.4.0 (2025-12-10)
+- Live Video Streaming
+- NLP Chatbot Integration
+- Multi-Account Management
+- Automated Response Templates
+- Message Scheduling
+- Spam Detection System
+- Group Analytics
+- Cross-Platform Messaging Bridge
+
+### v0.3.0 (2025-12-10)
+- Voice/File Attachments
+- Stories and Reels
+- Marketplace Features
+- Watch Together Sessions
+- Gaming Features
+- Plugin System
+
 ### v0.1.0 (2024-12-09)
 - Initial release
 - Core messaging features

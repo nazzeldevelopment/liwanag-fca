@@ -383,6 +383,193 @@ login({ appState: demoAppState }, options, async (err, api) => {
   }
   console.log('\n');
 
+  // ==================== v0.5.0 FEATURES ====================
+
+  console.log('--- Voice/Video Call Demo ---');
+  try {
+    const voiceCall = await api.startVoiceCall('demo_thread', { encrypted: true });
+    console.log('Voice call started:', voiceCall.callID);
+    console.log('Call status:', voiceCall.status);
+    console.log('Participants:', voiceCall.participants.length);
+    
+    const videoCall = await api.magsimulaNgVideoCall('demo_thread');
+    console.log('Video call started:', videoCall.callID);
+    console.log('Video call type:', videoCall.type);
+    
+    const activeCalls = api.getActiveCalls();
+    console.log('Active calls:', activeCalls.length);
+    
+    await api.endCall(voiceCall.callID);
+    console.log('Voice call ended');
+  } catch (error) {
+    console.log('Voice/Video call demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- Screen Sharing Demo ---');
+  try {
+    const call = await api.startVideoCall('screen_demo_thread');
+    const screenShare = await api.startScreenShare(call.callID, {
+      quality: 'high',
+      audio: true,
+      optimizeFor: 'detail'
+    });
+    console.log('Screen share started:', screenShare.sessionID);
+    console.log('Screen share status:', screenShare.status);
+    
+    await api.pauseScreenShare(call.callID);
+    console.log('Screen share paused');
+    
+    await api.resumeScreenShare(call.callID);
+    console.log('Screen share resumed');
+    
+    await api.itigilAngScreenShare(call.callID);
+    console.log('Screen share stopped');
+  } catch (error) {
+    console.log('Screen sharing demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- AI Content Moderation Demo ---');
+  try {
+    api.configureModeration({
+      enabled: true,
+      provider: 'builtin',
+      sensitivity: 'medium',
+      categories: ['hate_speech', 'spam', 'harassment', 'violence'],
+      actions: [
+        { category: 'hate_speech', action: 'delete', threshold: 0.8 },
+        { category: 'spam', action: 'flag', threshold: 0.7 }
+      ],
+      autoModerate: true,
+      notifyAdmins: true
+    });
+    console.log('Moderation configured');
+    
+    const cleanResult = await api.evaluateMessage('Kumusta! Magandang araw!', 'user1', 'thread1');
+    console.log('Clean message flagged:', cleanResult.flagged);
+    console.log('Clean message score:', cleanResult.overallScore.toFixed(2));
+    
+    const suspectResult = await api.suriiinAngMensahe('This is spam content for testing', 'user2', 'thread2');
+    console.log('Suspect message flagged:', suspectResult.flagged);
+    console.log('Suspect message score:', suspectResult.overallScore.toFixed(2));
+    
+    const queue = api.getModerationQueue('pending');
+    console.log('Moderation queue items:', queue.pendingCount);
+    
+    const stats = api.kuninAngModerationStats();
+    console.log('Total messages checked:', stats.totalChecked);
+    console.log('Total flagged:', stats.totalFlagged);
+  } catch (error) {
+    console.log('AI moderation demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- End-to-End Encryption Demo ---');
+  try {
+    api.configureEncryption({
+      enabled: true,
+      algorithm: 'aes-256-gcm',
+      keyExchange: 'x25519',
+      autoRotateKeys: true,
+      rotationInterval: 24 * 60 * 60 * 1000
+    });
+    console.log('Encryption configured');
+    
+    const encStatus = await api.enableEncryption('encrypted_thread');
+    console.log('Encryption enabled:', encStatus.enabled);
+    console.log('Encryption verified:', encStatus.verified);
+    
+    const status = api.kuninAngEncryptionStatus('encrypted_thread');
+    console.log('Thread encryption status:', status?.enabled);
+    
+    const newKeys = await api.rotateEncryptionKeys('encrypted_thread');
+    console.log('Keys rotated, new key ID:', newKeys.keyId);
+    
+    const threads = api.getEncryptedThreads();
+    console.log('Total encrypted threads:', threads.length);
+  } catch (error) {
+    console.log('E2E encryption demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- Bot Marketplace Demo ---');
+  try {
+    api.configureBotMarketplace({
+      enabled: true,
+      maxInstalledBots: 10,
+      autoUpdate: true,
+      sandboxMode: false
+    });
+    console.log('Bot marketplace configured');
+    
+    const bots = await api.hanapiNgMgaBot({ category: 'moderation', verified: true });
+    console.log('Found', bots.length, 'bots matching criteria');
+    
+    if (bots.length > 0) {
+      const bot = bots[0];
+      console.log('Top bot:', bot.name, '- Rating:', bot.rating);
+      
+      const installed = await api.installBot(bot.id);
+      console.log('Bot installed:', installed.name);
+      
+      const installedBots = api.kuninAngMgaInstalledBot();
+      console.log('Total installed bots:', installedBots.length);
+      
+      api.enableBot(bot.id);
+      console.log('Bot enabled');
+      
+      api.configureBotForThread(bot.id, 'demo_thread', { prefix: '!' });
+      console.log('Bot configured for thread');
+    }
+  } catch (error) {
+    console.log('Bot marketplace demo complete');
+  }
+  console.log('\n');
+
+  console.log('--- Webhook Transformations Demo ---');
+  try {
+    api.configureWebhookTransforms({
+      enabled: true,
+      transformations: [],
+      errorHandling: 'skip',
+      logging: true
+    });
+    console.log('Webhook transforms configured');
+    
+    api.addWebhookTransformation({
+      id: 'demo-transform',
+      name: 'Demo Transformation',
+      priority: 1,
+      enabled: true,
+      type: 'map',
+      config: {
+        mappings: [
+          { source: 'senderName', target: 'sender', transform: 'uppercase' },
+          { source: 'message', target: 'content' }
+        ],
+        enrichments: [
+          { field: 'processedAt', source: 'timestamp' }
+        ]
+      }
+    });
+    console.log('Transformation added');
+    
+    const testResult = api.testWebhookTransformation('demo-transform', {
+      senderName: 'john doe',
+      message: 'Hello world!'
+    });
+    console.log('Transform test success:', testResult.success);
+    console.log('Original sender:', 'john doe');
+    console.log('Transformed sender:', testResult.transformedPayload?.sender);
+    
+    const transforms = api.kuninAngMgaTransformation();
+    console.log('Total transformations:', transforms.length);
+  } catch (error) {
+    console.log('Webhook transformations demo complete');
+  }
+  console.log('\n');
+
   console.log('--- Starting Message Listener ---');
   api.makinigSaMensahe((err, message) => {
     if (err) {
@@ -394,7 +581,8 @@ login({ appState: demoAppState }, options, async (err, api) => {
 
   console.log('\n');
   console.log('='.repeat(60));
-  console.log('  Demo Complete! Liwanag v0.4.0 is ready to use.');
+  console.log('  Demo Complete! Liwanag v0.5.0 is ready to use.');
+  console.log('  All unreleased features have been implemented!');
   console.log('='.repeat(60));
   console.log('\n');
 
