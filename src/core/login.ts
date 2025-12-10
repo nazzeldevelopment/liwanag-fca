@@ -31,7 +31,7 @@ export async function login(
   const logConfig = options.logConfig as Partial<LogConfig> | undefined;
   const logger = new Logger(logConfig);
   
-  logger.printBanner('0.1.0');
+  logger.printBanner('0.5.0');
   logger.info(logger.getMessage('loginStart'));
 
   try {
