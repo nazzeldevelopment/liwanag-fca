@@ -4,6 +4,7 @@ import * as path from 'path';
 import axios from 'axios';
 import FormData from 'form-data';
 import { v4 as uuidv4 } from 'uuid';
+import { MqttClient } from './mqttClient';
 import {
   LiwanagApi,
   LiwanagOptions,
@@ -126,9 +127,10 @@ export class Api extends EventEmitter implements LiwanagApi {
   private _requestObfuscator: RequestObfuscator;
   private _patternDiffuser: PatternDiffuser;
   private _rateLimiter: SmartRateLimiter;
-  private mqttClient: any = null;
+  private mqttClient: MqttClient | null = null;
   private isListening: boolean = false;
   private messageCallback: MessageCallback | null = null;
+  private appState: AppState;
   private webhooks: Map<string, WebhookConfig> = new Map();
   private notificationCallbacks: NotificationCallback[] = [];
   private notificationPollingInterval: NodeJS.Timeout | null = null;
@@ -216,6 +218,7 @@ export class Api extends EventEmitter implements LiwanagApi {
     this._patternDiffuser = patternDiff;
     this._rateLimiter = rateLimiter;
 
+    this.appState = appState;
     this.cookieManager.setAppState(appState);
     
     if (appState.fbDtsg) {
@@ -312,10 +315,89 @@ export class Api extends EventEmitter implements LiwanagApi {
     this.startMqttConnection();
   }
 
-  private startMqttConnection(): void {
-    this.logger.debug('MQTT connection simulated - ready for messages');
-    
-    this.emit('ready');
+  private async startMqttConnection(): Promise<void> {
+    try {
+      this.mqttClient = new MqttClient(
+        this.userId,
+        this.appState,
+        {
+          selfListen: this.options.selfListen,
+          listenEvents: this.options.listenEvents
+        },
+        this.logger
+      );
+
+      this.mqttClient.on('message', (message: Message) => {
+        if (this.messageCallback) {
+          this.messageCallback(null, message);
+        }
+        this.emit('message', message);
+        this.logger.incrementMessagesReceived();
+        this.analyticsData.messagesReceived++;
+        
+        this.triggerWebhook('message', { 
+          messageID: message.messageID, 
+          threadID: message.threadID, 
+          type: 'received' 
+        });
+      });
+
+      this.mqttClient.on('typing', (data: any) => {
+        this.emit('typing', data);
+        this.triggerWebhook('typing', data);
+      });
+
+      this.mqttClient.on('presence', (data: any) => {
+        this.emit('presence', data);
+        this.triggerWebhook('presence', data);
+      });
+
+      this.mqttClient.on('read_receipt', (data: any) => {
+        this.emit('read_receipt', data);
+        this.triggerWebhook('message_read', data);
+      });
+
+      this.mqttClient.on('participant_added', (data: any) => {
+        this.emit('participant_added', data);
+      });
+
+      this.mqttClient.on('participant_left', (data: any) => {
+        this.emit('participant_left', data);
+      });
+
+      this.mqttClient.on('thread_name', (data: any) => {
+        this.emit('thread_name', data);
+      });
+
+      this.mqttClient.on('error', (error: Error) => {
+        if (this.messageCallback) {
+          this.messageCallback(error, null as any);
+        }
+        this.emit('error', error);
+        this.analyticsData.errors++;
+      });
+
+      this.mqttClient.on('connected', () => {
+        this.emit('ready');
+        this.logger.success('LiwanagFCA message listener started successfully');
+      });
+
+      this.mqttClient.on('disconnected', () => {
+        this.isListening = false;
+        this.emit('disconnected');
+      });
+
+      await this.mqttClient.connect();
+
+    } catch (error) {
+      this.logger.error('Failed to start MQTT connection', { 
+        error: (error as Error).message 
+      });
+      this.isListening = false;
+      if (this.messageCallback) {
+        this.messageCallback(error as Error, null as any);
+      }
+    }
   }
 
   simulateMessage(message: Message): void {
@@ -326,13 +408,14 @@ export class Api extends EventEmitter implements LiwanagApi {
   }
 
   isConnected(): boolean {
-    return this.isListening;
+    return this.isListening && (this.mqttClient?.getConnectionStatus() ?? false);
   }
 
   stopListening(): void {
     this.isListening = false;
     this.messageCallback = null;
     if (this.mqttClient) {
+      this.mqttClient.disconnect();
       this.mqttClient = null;
     }
     this.logger.info('Message listener stopped');
@@ -340,6 +423,18 @@ export class Api extends EventEmitter implements LiwanagApi {
 
   itigil(): void {
     this.stopListening();
+  }
+
+  sendTypingIndicator(threadID: string, isTyping: boolean = true): void {
+    if (this.mqttClient) {
+      this.mqttClient.sendTypingIndicator(threadID, isTyping);
+    }
+  }
+
+  setPresence(isOnline: boolean): void {
+    if (this.mqttClient) {
+      this.mqttClient.sendPresence(isOnline);
+    }
   }
 
   async kuninAngUserInfo(
@@ -3249,7 +3344,7 @@ export class Api extends EventEmitter implements LiwanagApi {
     try {
       this.isListening = false;
       if (this.mqttClient) {
-        this.mqttClient.end();
+        this.mqttClient.disconnect();
         this.mqttClient = null;
       }
       this.stopNotificationPolling();
