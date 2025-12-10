@@ -7,12 +7,9 @@ import {
   CheckpointData,
   TwoFactorAuthOptions,
   TimelinePostOptions,
-  WebhookConfig,
-  Command,
-  Message
+  WebhookConfig
 } from './index';
 import { Logger } from './utils/logger';
-import { CommandHandler } from './core/commandHandler';
 
 const demoAppState: AppState = {
   cookies: [
@@ -573,95 +570,6 @@ login({ appState: demoAppState }, options, async (err, api) => {
   }
   console.log('\n');
 
-  // ==================== v0.6.0 FEATURES - COMMAND HANDLER ====================
-
-  console.log('--- Command Handler System Demo ---');
-  try {
-    const cmdHandler = new CommandHandler({
-      prefixes: ['W!', 'N!', '!'],
-      caseSensitive: false,
-      defaultCooldown: 3000,
-      logCommands: true,
-      selfID: api.getUserID(),
-      cooldownMessage: '⚠️ Slow down! Please wait {time}s before sending another command.',
-      permissionMessage: '🚫 You do not have permission to use this command.',
-      maintenanceMessage: '🔧 Bot is under maintenance. Please try again later.'
-    });
-
-    cmdHandler.addBotAdmin('100000000000000');
-    console.log('Command handler configured with prefixes: W!, N!, !');
-
-    cmdHandler.registerCommand({
-      name: 'greet',
-      aliases: ['hello', 'hi', 'kumusta'],
-      description: 'Greets the user',
-      category: 'fun',
-      usage: 'greet [name]',
-      cooldown: 5000,
-      execute: async (ctx) => {
-        const name = ctx.args[0] || 'kaibigan';
-        await ctx.reply(\`Kumusta, \${name}! 👋\`);
-        return { success: true };
-      }
-    });
-    console.log('Registered custom command: greet');
-
-    cmdHandler.registerCommand({
-      name: 'kick',
-      aliases: ['remove'],
-      description: 'Kick a member from the group',
-      category: 'moderation',
-      usage: 'kick @user',
-      permissions: ['admin'],
-      execute: async (ctx) => {
-        if (ctx.args.length === 0) {
-          await ctx.reply('❌ Please mention or provide the user ID to kick.');
-          return { success: false };
-        }
-        const userID = ctx.args[0].replace(/[^0-9]/g, '');
-        await ctx.reply(\`✅ User \${userID} has been kicked from the group.\`);
-        return { success: true };
-      }
-    });
-    console.log('Registered moderation command: kick');
-
-    const allCommands = cmdHandler.getCommands();
-    console.log('Total registered commands:', allCommands.length);
-    console.log('Built-in commands: help, adminonly, prefix, ping, uptime, disable, enable, maintenance');
-
-    const testMessage: Message = {
-      messageID: 'test_msg_001',
-      threadID: '123456789012345',
-      senderID: '100000000000001',
-      body: 'W!help',
-      timestamp: Date.now(),
-      type: 'text',
-      attachments: [],
-      mentions: [],
-      isGroup: true
-    };
-
-    console.log('Simulating command: W!help');
-    const result = await cmdHandler.handleMessage(testMessage, api);
-    console.log('Command result:', result?.success ? 'Success' : 'Failed');
-
-    cmdHandler.setThreadSettings('123456789012345', {
-      adminOnly: false,
-      disabledCommands: [],
-      customPrefixes: [],
-      cooldownMultiplier: 1,
-      adminIDs: ['100000000000001']
-    });
-    console.log('Thread settings configured');
-
-    const settings = cmdHandler.getThreadSettings('123456789012345');
-    console.log('Admin-only mode:', settings.adminOnly ? 'ON' : 'OFF');
-
-  } catch (error) {
-    console.log('Command handler demo complete');
-  }
-  console.log('\n');
-
   console.log('--- Starting Message Listener ---');
   api.makinigSaMensahe((err, message) => {
     if (err) {
@@ -674,7 +582,7 @@ login({ appState: demoAppState }, options, async (err, api) => {
   console.log('\n');
   console.log('='.repeat(60));
   console.log('  Demo Complete! Liwanag v0.6.0 is ready to use.');
-  console.log('  Command Handler System fully implemented!');
+  console.log('  Real MQTT connection implemented!');
   console.log('='.repeat(60));
   console.log('\n');
 
@@ -683,51 +591,3 @@ login({ appState: demoAppState }, options, async (err, api) => {
 
   console.log('\nPress Ctrl+C to exit...\n');
 });
-
-console.log('\n--- Credential Login Example (with 2FA/Checkpoint support) ---');
-console.log(`
-// Example: Login with email/password and checkpoint handler
-import { login, loginWithCheckpointHandler } from 'liwanag-fca';
-
-// Method 1: Using checkpointHandler
-loginWithCheckpointHandler(
-  { email: 'your@email.com', password: 'your-password' },
-  {
-    onCheckpoint: async (data) => {
-      console.log('Checkpoint type:', data.type);
-      console.log('Message:', data.message);
-      
-      // Return the verification code
-      // You can prompt the user for input here
-      if (data.type === 'two_factor') {
-        return { method: '2fa_code', code: '123456' };
-      }
-      return 'verification-code';
-    },
-    onError: (error) => {
-      console.error('Checkpoint error:', error.message);
-    }
-  },
-  {},
-  (err, api) => {
-    if (err) {
-      console.error('Login failed:', err.message);
-      return;
-    }
-    console.log('Logged in successfully!');
-  }
-);
-
-// Method 2: Using twoFactorCode directly
-import { loginWithTwoFactor } from 'liwanag-fca';
-
-loginWithTwoFactor(
-  { email: 'your@email.com', password: 'your-password' },
-  '123456', // Your 2FA code
-  {},
-  (err, api) => {
-    if (err) return console.error(err);
-    console.log('Logged in with 2FA!');
-  }
-);
-`);

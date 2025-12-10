@@ -5,6 +5,50 @@ Lahat ng notable changes sa project na ito ay dokumentado dito.
 Ang format ay based sa [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 at ang project na ito ay sumusunod sa [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2025-12-10
+
+### 🎉 Real MQTT Connection Implementation
+
+Ang major release na ito ay nagdadala ng tunay na MQTT connection para sa real-time message listening sa Messenger group chats.
+
+### ✨ Added
+
+#### 📡 Real MQTT Message Listening
+- **MqttClient Class**
+  - Real WebSocket connection to `edge-chat.facebook.com`
+  - Proper MQTT protocol implementation using mqtt.js
+  - Subscribe to Facebook Messenger topics (`/t_ms`, `/thread_typing`, `/orca_presence`, etc.)
+  - Real-time message sync with delta processing
+
+- **Message Events**
+  - `message` - Real-time incoming messages
+  - `typing` - Typing indicators
+  - `presence` - Online/offline status
+  - `read_receipt` - Read receipts
+  - `participant_added` - When someone joins a group
+  - `participant_left` - When someone leaves a group
+  - `thread_name` - Thread name changes
+
+- **New API Methods**
+  - `sendTypingIndicator(threadID, isTyping)` - Send typing indicator
+  - `setPresence(isOnline)` - Set online/offline status
+  - `isConnected()` - Check MQTT connection status
+  - `stopListening()` / `itigil()` - Stop message listener
+
+### 🔧 Fixed
+- MQTT connection now actually connects to Facebook's servers instead of simulating
+- Messages from Messenger group chats are now properly received
+- Delta processing for real-time sync
+
+### 🔧 Technical Improvements
+- WebSocket connection to `wss://edge-chat.facebook.com/chat`
+- Proper MQTT topic subscription for message sync
+- Delta-based message processing (`NewMessage`, `ReadReceipt`, `AdminTextMessage`, etc.)
+- Reconnection handling with exponential backoff
+- Session management with sync tokens
+
+---
+
 ## [0.5.0] - 2025-12-10
 
 ### 🎉 Ultimate Feature Release - Complete Platform Implementation
