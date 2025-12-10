@@ -318,6 +318,30 @@ export class Api extends EventEmitter implements LiwanagApi {
     this.emit('ready');
   }
 
+  simulateMessage(message: Message): void {
+    if (this.messageCallback) {
+      this.messageCallback(null, message);
+    }
+    this.emit('message', message);
+  }
+
+  isConnected(): boolean {
+    return this.isListening;
+  }
+
+  stopListening(): void {
+    this.isListening = false;
+    this.messageCallback = null;
+    if (this.mqttClient) {
+      this.mqttClient = null;
+    }
+    this.logger.info('Message listener stopped');
+  }
+
+  itigil(): void {
+    this.stopListening();
+  }
+
   async kuninAngUserInfo(
     userIDs: string | string[],
     callback?: (err: Error | null, info: Record<string, UserInfo>) => void

@@ -6,6 +6,7 @@ import {
   LoginOptionsWithCheckpoint
 } from './core/login';
 import { Api } from './core/api';
+import { CommandHandler } from './core/commandHandler';
 import { Logger } from './utils/logger';
 import { CookieManager } from './utils/cookies';
 import {
@@ -24,6 +25,7 @@ export {
   loginWithCheckpointHandler,
   LoginOptionsWithCheckpoint,
   Api,
+  CommandHandler,
   Logger,
   CookieManager,
   FingerprintManager,
@@ -38,6 +40,7 @@ export default {
   loginWithTwoFactor,
   loginWithCheckpointHandler,
   Api,
+  CommandHandler,
   Logger,
   CookieManager,
   FingerprintManager,

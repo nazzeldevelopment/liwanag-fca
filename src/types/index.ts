@@ -1731,3 +1731,86 @@ export interface TransformationResult {
   error?: string;
   processingTime: number;
 }
+
+// ==================== COMMAND HANDLER TYPES ====================
+
+export type CommandPermission = 'admin' | 'botAdmin' | 'user';
+
+export interface CommandConfig {
+  prefixes: string[];
+  caseSensitive: boolean;
+  ignoreBots: boolean;
+  ignoreSelf: boolean;
+  defaultCooldown: number;
+  adminOnly: boolean;
+  maintenanceMode: boolean;
+  maintenanceMessage: string;
+  errorMessage: string;
+  cooldownMessage: string;
+  permissionMessage: string;
+  unknownCommandMessage?: string;
+  logCommands: boolean;
+  deleteCommandMessage: boolean;
+  mentionAsPrefix: boolean;
+  selfID?: string;
+}
+
+export interface Command {
+  name: string;
+  aliases?: string[];
+  description?: string;
+  category?: string;
+  usage?: string;
+  permissions?: CommandPermission[];
+  cooldown?: number;
+  hidden?: boolean;
+  nsfw?: boolean;
+  args?: CommandArgument[];
+  execute: (context: CommandContext) => Promise<CommandResult>;
+  onError?: (error: Error, context: CommandContext) => Promise<void>;
+}
+
+export interface CommandArgument {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'user' | 'channel';
+  required?: boolean;
+  default?: any;
+  description?: string;
+}
+
+export interface CommandContext {
+  message: Message;
+  args: string[];
+  prefix: string;
+  command: string;
+  api: any;
+  threadInfo?: any;
+  isGroupAdmin: boolean;
+  isBotAdmin: boolean;
+  reply: (text: string) => Promise<any>;
+  react: (emoji: string) => Promise<any>;
+}
+
+export interface CommandResult {
+  success: boolean;
+  error?: string;
+  data?: any;
+}
+
+export interface CommandCooldown {
+  command: string;
+  userID: string;
+  expiresAt: number;
+}
+
+export interface ThreadSettings {
+  adminOnly: boolean;
+  disabledCommands: string[];
+  customPrefixes: string[];
+  cooldownMultiplier: number;
+  adminIDs: string[];
+  welcomeMessage?: string;
+  leaveMessage?: string;
+  antiSpam?: boolean;
+  badWordFilter?: boolean;
+}
