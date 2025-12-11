@@ -5,6 +5,26 @@ Lahat ng notable changes sa project na ito ay dokumentado dito.
 Ang format ay based sa [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 at ang project na ito ay sumusunod sa [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2025-12-12
+
+### 🔧 Fixed
+
+- **MQTT Connection Stability Improvements**
+  - Fixed MQTT connection continuously closing and reconnecting issue
+  - Implemented exponential backoff with jitter for smarter reconnection
+  - Increased keepalive interval from 10s to 60s for more stable connections
+  - Added ping interval monitoring to detect stale connections
+  - Increased max reconnect attempts from 10 to 50
+  - Better connection timeout handling (120s connect timeout)
+  - Added unique client ID per connection to prevent conflicts
+  - Proper cleanup of timers and intervals on disconnect
+  - Added `getReconnectAttempts()` and `resetReconnectAttempts()` methods
+  - Disabled automatic reconnect to use custom reconnection logic
+  - Added WebSocket handshake timeout configuration
+  - Emit `max_reconnect_reached` event when max attempts exceeded
+
+---
+
 ## [0.6.1] - 2025-12-12
 
 ### 🔧 Fixed

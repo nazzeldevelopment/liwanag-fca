@@ -48,11 +48,15 @@ export class MqttClient extends EventEmitter {
   private config: MqttConfig;
   private isConnected: boolean = false;
   private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 10;
+  private maxReconnectAttempts: number = 50;
   private lastSeqId: string = '';
   private syncToken: string = '';
   private sessionId: number;
   private deviceId: string;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private pingInterval: NodeJS.Timeout | null = null;
+  private lastPingTime: number = 0;
+  private connectionStartTime: number = 0;
 
   constructor(
     userId: string,
@@ -131,22 +135,26 @@ export class MqttClient extends EventEmitter {
           region: this.config.region
         });
 
+        this.connectionStartTime = Date.now();
+
         const options: mqtt.IClientOptions = {
-          clientId: 'mqttwsclient',
+          clientId: `mqttwsclient_${this.deviceId}`,
           protocolId: 'MQIsdp',
           protocolVersion: 3,
           clean: true,
-          keepalive: 10,
-          connectTimeout: 60000,
-          reconnectPeriod: 5000,
+          keepalive: 60,
+          connectTimeout: 120000,
+          reconnectPeriod: 0,
           username: this.buildUsername(),
           password: this.getSessionCookies(),
           wsOptions: {
             headers: {
               'Cookie': this.getCookieString(),
               'User-Agent': this.config.userAgent,
-              'Origin': 'https://www.messenger.com'
-            }
+              'Origin': 'https://www.messenger.com',
+              'Host': 'edge-chat.messenger.com'
+            },
+            handshakeTimeout: 30000
           }
         };
 
@@ -159,6 +167,7 @@ export class MqttClient extends EventEmitter {
           
           this.subscribeToTopics();
           this.sendSyncRequest();
+          this.startPingInterval();
           
           this.emit('connected');
           resolve();
@@ -171,23 +180,31 @@ export class MqttClient extends EventEmitter {
         this.client.on('error', (error: Error) => {
           this.logger.error('MQTT error', { error: error.message });
           this.emit('error', error);
+          
+          if (!this.isConnected) {
+            this.scheduleReconnect();
+          }
         });
 
         this.client.on('close', () => {
+          const wasConnected = this.isConnected;
           this.isConnected = false;
-          this.logger.warning('MQTT connection closed');
-          this.emit('disconnected');
-        });
-
-        this.client.on('reconnect', () => {
-          this.reconnectAttempts++;
-          this.logger.info('Reconnecting to MQTT...', { 
-            attempt: this.reconnectAttempts 
-          });
+          this.stopPingInterval();
+          
+          if (wasConnected) {
+            this.logger.warning('MQTT connection closed');
+            this.emit('disconnected');
+            this.scheduleReconnect();
+          }
         });
 
         this.client.on('offline', () => {
           this.logger.warning('MQTT client offline');
+          this.scheduleReconnect();
+        });
+
+        this.client.on('packetreceive', () => {
+          this.lastPingTime = Date.now();
         });
 
       } catch (error) {
@@ -197,6 +214,77 @@ export class MqttClient extends EventEmitter {
         reject(error);
       }
     });
+  }
+
+  private startPingInterval(): void {
+    this.stopPingInterval();
+    this.lastPingTime = Date.now();
+    
+    this.pingInterval = setInterval(() => {
+      if (this.client && this.isConnected) {
+        const timeSinceLastPing = Date.now() - this.lastPingTime;
+        
+        if (timeSinceLastPing > 180000) {
+          this.logger.warning('MQTT ping timeout, reconnecting...');
+          this.forceReconnect();
+        }
+      }
+    }, 30000);
+  }
+
+  private stopPingInterval(): void {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer) {
+      return;
+    }
+
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.logger.error('Max reconnect attempts reached');
+      this.emit('max_reconnect_reached');
+      return;
+    }
+
+    const baseDelay = 1000;
+    const maxDelay = 30000;
+    const delay = Math.min(baseDelay * Math.pow(1.5, this.reconnectAttempts), maxDelay);
+    const jitter = Math.random() * 1000;
+    const totalDelay = delay + jitter;
+
+    this.reconnectAttempts++;
+    this.logger.info('Reconnecting to MQTT...', { 
+      attempt: this.reconnectAttempts,
+      delayMs: Math.round(totalDelay)
+    });
+
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
+      await this.forceReconnect();
+    }, totalDelay);
+  }
+
+  private async forceReconnect(): Promise<void> {
+    try {
+      if (this.client) {
+        this.client.end(true);
+        this.client = null;
+      }
+      
+      this.sessionId = Math.floor(Math.random() * 0xFFFFFFFF);
+      this.deviceId = this.generateDeviceId();
+      
+      await this.connect();
+    } catch (error) {
+      this.logger.error('Reconnect failed', { 
+        error: (error as Error).message 
+      });
+      this.scheduleReconnect();
+    }
   }
 
   private subscribeToTopics(): void {
@@ -433,12 +521,27 @@ export class MqttClient extends EventEmitter {
   }
 
   disconnect(): void {
+    this.stopPingInterval();
+    
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    
     if (this.client) {
       this.client.end(true);
       this.client = null;
       this.isConnected = false;
       this.logger.info('MQTT disconnected');
     }
+  }
+
+  getReconnectAttempts(): number {
+    return this.reconnectAttempts;
+  }
+
+  resetReconnectAttempts(): void {
+    this.reconnectAttempts = 0;
   }
 
   getConnectionStatus(): boolean {
