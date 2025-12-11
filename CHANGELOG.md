@@ -5,6 +5,17 @@ Lahat ng notable changes sa project na ito ay dokumentado dito.
 Ang format ay based sa [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 at ang project na ito ay sumusunod sa [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2025-12-11
+
+### 🔧 Fixed
+
+- **AppState Login Fix**
+  - Fixed appstate-based login authentication issue
+  - Improved session token handling and validation
+  - Better error handling for expired or invalid appstate
+
+---
+
 ## [0.6.0] - 2025-12-10
 
 ### 🎉 Real MQTT Connection Implementation
