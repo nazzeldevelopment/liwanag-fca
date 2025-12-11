@@ -1,0 +1,100 @@
+[08:46:36] [DEBUG] Loaded command: clear (music)
+[08:46:36] [DEBUG] Loaded command: filter (music)
+[08:46:36] [DEBUG] Loaded command: loop (music)
+[08:46:36] [DEBUG] Loaded command: lyrics (music)
+[08:46:36] [DEBUG] Loaded command: move (music)
+[08:46:36] [DEBUG] Loaded command: nowplaying (music)
+[08:46:36] [DEBUG] Loaded command: pause (music)
+[08:46:36] [DEBUG] Loaded command: play (music)
+[08:46:36] [DEBUG] Loaded command: playlist (music)
+[08:46:36] [DEBUG] Loaded command: queue (music)
+[08:46:36] [DEBUG] Loaded command: remove (music)
+[08:46:36] [DEBUG] Loaded command: resume (music)
+[08:46:36] [DEBUG] Loaded command: search (music)
+[08:46:36] [DEBUG] Loaded command: seek (music)
+[08:46:36] [DEBUG] Loaded command: shuffle (music)
+[08:46:36] [DEBUG] Loaded command: skip (music)
+[08:46:36] [DEBUG] Loaded command: stop (music)
+[08:46:36] [DEBUG] Loaded command: volume (music)
+[08:46:36] [DEBUG] Loaded command: ascii (utility)
+[08:46:36] [DEBUG] Loaded command: avatar (utility)
+[08:46:36] [DEBUG] Loaded command: base64 (utility)
+[08:46:36] [DEBUG] Loaded command: calc (utility)
+[08:46:36] [DEBUG] Loaded command: clear (utility)
+[08:46:36] [DEBUG] Loaded command: color (utility)
+[08:46:36] [DEBUG] Loaded command: compresspdf (utility)
+[08:46:36] [DEBUG] Loaded command: countdown (utility)
+[08:46:36] [DEBUG] Loaded command: define (utility)
+[08:46:36] [DEBUG] Loaded command: detectspam (utility)
+[08:46:36] [DEBUG] Loaded command: extractaudio (utility)
+[08:46:36] [DEBUG] Loaded command: extracttext (utility)
+[08:46:36] [DEBUG] Loaded command: fileinfo (utility)
+[08:46:36] [DEBUG] Loaded command: flip (utility)
+[08:46:36] [DEBUG] Loaded command: grammar (utility)
+[08:46:36] [DEBUG] Loaded command: groupinfo (utility)
+[08:46:36] [DEBUG] Loaded command: id (utility)
+[08:46:36] [DEBUG] Loaded command: img2pdf (utility)
+[08:46:36] [DEBUG] Loaded command: memberlist (utility)
+[08:46:36] [DEBUG] Loaded command: merge (utility)
+[08:46:36] [DEBUG] Loaded command: noteadd (utility)
+[08:46:36] [DEBUG] Loaded command: notedelete (utility)
+[08:46:36] [DEBUG] Loaded command: notelist (utility)
+[08:46:36] [DEBUG] Loaded command: paraphrase (utility)
+[08:46:36] [DEBUG] Loaded command: password (utility)
+[08:46:36] [DEBUG] Loaded command: pdfmerge (utility)
+[08:46:36] [DEBUG] Loaded command: poll (utility)
+[08:46:36] [DEBUG] Loaded command: prefix (utility)
+[08:46:36] [DEBUG] Loaded command: qr (utility)
+[08:46:36] [DEBUG] Loaded command: remind (utility)
+[08:46:36] [DEBUG] Loaded command: reminder (utility)
+[08:46:36] [DEBUG] Loaded command: reminderdelete (utility)
+[08:46:36] [DEBUG] Loaded command: reminderlist (utility)
+[08:46:36] [DEBUG] Loaded command: remindme (utility)
+[08:46:36] [DEBUG] Loaded command: shorten (utility)
+[08:46:36] [DEBUG] Loaded command: botstats (utility)
+[08:46:36] [DEBUG] Loaded command: thread (utility)
+[08:46:36] [DEBUG] Loaded command: time (utility)
+[08:46:36] [DEBUG] Loaded command: translate (utility)
+[08:46:36] [DEBUG] Loaded command: translatefix (utility)
+[08:46:36] [DEBUG] Loaded command: trim (utility)
+[08:46:36] [DEBUG] Loaded command: unzip (utility)
+[08:46:36] [DEBUG] Loaded command: userinfo (utility)
+[08:46:36] [DEBUG] Loaded command: weather (utility)
+[08:46:36] [DEBUG] Loaded command: zipfiles (utility)
+08:46:36 2025/11/12    SUCCESS: Loaded 204 commands
+  [COMMANDS]        Loaded 204 commands in 7 categories
+                    - admin: 61 commands
+                    - economy: 17 commands
+                    - fun: 48 commands
+                    - general: 10 commands
+                    - level: 5 commands
+                    - music: 18 commands
+                    - utility: 45 commands
+  [MODERATION]      Bad words filter loaded
+  [MAINTENANCE]     Maintenance system ready
+  [EVENTS]          Event handlers initialized
+═════════════════════ STARTING SERVICES ═════════════════════════
+  [SERVER]          Express running on port 5000
+  [DASHBOARD]       http://0.0.0.0:5000
+  [APPSTATE]        Loaded from file
+  [APPSTATE]        Synced to database
+════════════════════ CONNECTING TO FACEBOOK ═════════════════════
+  [LOGIN]           Attempting Facebook login...
+
+╔═══════════════════════════════════════════════════════════════╗
+║  🌟 LIWANAG FCA - Filipino Facebook API Library               ║
+║  Version 0.6.0 | Node.js v24.0.2                              ║
+╚═══════════════════════════════════════════════════════════════╝
+
+[2025-12-11 08:46:36] ℹ INFO    │ Nagsisimula ang login process...
+[2025-12-11 08:46:36] ⚙ SYSTEM  │ Binabasa ang appstate file...
+[2025-12-11 08:46:36] ✗ ERROR   │ Hindi matagumpay ang login
+                      │ error: "Could not extract user ID from appstate"
+08:46:36 2025/11/12    ERROR: Login failed - Could not extract user ID from appstate
+[08:46:36] [ERROR] Login failed Could not extract user ID from appstate {"stack":"Error: Could not extract user ID from appstate\n    at Object.login (/workspace/node_modules/liwanag-fca/src/core/login.ts:54:13)\n    at main (/workspace/src/main.ts:229:11)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)"}
+  [LOGIN]           Login failed. Please check your appstate.
+Instance is healthy. All health checks are passing.
+[14:46:29] [WARN] Redis connection closed
+[14:46:29] [INFO] Redis reconnecting...
+[14:46:35] [WARN] Redis connection closed
+[14:46:35] [INFO] Redis reconnecting...

@@ -39,7 +39,8 @@ export async function login(
 
     if ('appState' in credentials) {
       logger.system(logger.getMessage('readingAppstate'));
-      appState = credentials.appState;
+      // Normalize appstate format - handle both array and object formats
+      appState = normalizeAppState(credentials.appState);
     } else {
       logger.info('Logging in with credentials...');
       appState = await loginWithCredentials(credentials, options, logger);
@@ -607,9 +608,16 @@ function extractUserId(appState: AppState): string | null {
     return appState.userId;
   }
 
-  const cUserCookie = appState.cookies.find(c => c.name === 'c_user');
-  if (cUserCookie) {
-    return cUserCookie.value;
+  if (!appState.cookies || !Array.isArray(appState.cookies)) {
+    return null;
+  }
+
+  // Try to find c_user cookie - handle both 'name' and 'key' formats
+  for (const cookie of appState.cookies) {
+    const cookieName = (cookie as any).name || (cookie as any).key;
+    if (cookieName === 'c_user') {
+      return cookie.value;
+    }
   }
 
   return null;
@@ -629,13 +637,79 @@ export async function loginFromAppState(
     }
 
     const data = await fs.promises.readFile(appStatePath, 'utf-8');
-    const appState = JSON.parse(data) as AppState;
+    const parsed = JSON.parse(data);
+    
+    // Normalize appstate format - handle both array and object formats
+    const appState = normalizeAppState(parsed);
 
     return login({ appState }, options, callback);
   } catch (error) {
     logger.error('Failed to load appstate', { path: appStatePath });
     callback(error as Error, null as any);
   }
+}
+
+function normalizeAppState(parsed: any): AppState {
+  // If it's an array, it's just cookies (common fca-unofficial format)
+  if (Array.isArray(parsed)) {
+    const cookies = normalizeCookies(parsed);
+    const userId = extractUserIdFromCookies(cookies);
+    return {
+      cookies,
+      userId: userId || undefined,
+      lastRefresh: Date.now()
+    };
+  }
+  
+  // If it's an object with cookies array
+  if (parsed && typeof parsed === 'object') {
+    if (parsed.cookies && Array.isArray(parsed.cookies)) {
+      const cookies = normalizeCookies(parsed.cookies);
+      return {
+        ...parsed,
+        cookies,
+        userId: parsed.userId || extractUserIdFromCookies(cookies) || undefined
+      };
+    }
+    
+    // Maybe it's an object where each key is a cookie
+    if (parsed.c_user) {
+      const cookies: Cookie[] = Object.entries(parsed).map(([key, value]) => ({
+        name: key,
+        value: String(value),
+        domain: '.facebook.com',
+        path: '/'
+      }));
+      return {
+        cookies,
+        userId: String(parsed.c_user),
+        lastRefresh: Date.now()
+      };
+    }
+  }
+  
+  return parsed as AppState;
+}
+
+function normalizeCookies(cookies: any[]): Cookie[] {
+  return cookies.map(cookie => {
+    // Handle both 'name' and 'key' formats
+    const name = cookie.name || cookie.key;
+    return {
+      name,
+      value: cookie.value,
+      domain: cookie.domain || '.facebook.com',
+      path: cookie.path || '/',
+      expires: cookie.expires || cookie.expirationDate,
+      httpOnly: cookie.httpOnly,
+      secure: cookie.secure
+    };
+  });
+}
+
+function extractUserIdFromCookies(cookies: Cookie[]): string | null {
+  const cUserCookie = cookies.find(c => c.name === 'c_user');
+  return cUserCookie ? cUserCookie.value : null;
 }
 
 export async function loginWithTwoFactor(
