@@ -5,7 +5,7 @@ Lahat ng notable changes sa project na ito ay dokumentado dito.
 Ang format ay based sa [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 at ang project na ito ay sumusunod sa [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.6.1] - 2025-12-11
+## [0.6.1] - 2025-12-12
 
 ### 🔧 Fixed
 
