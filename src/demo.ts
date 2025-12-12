@@ -581,8 +581,8 @@ login({ appState: demoAppState }, options, async (err, api) => {
 
   console.log('\n');
   console.log('='.repeat(60));
-  console.log('  Demo Complete! Liwanag v0.6.3 is ready to use.');
-  console.log('  Real MQTT connection implemented!');
+  console.log('  Demo Complete! Liwanag v0.6.6 is ready to use.');
+  console.log('  Enhanced MQTT for Group Chat & Private Messages!');
   console.log('='.repeat(60));
   console.log('\n');
 

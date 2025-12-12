@@ -5,6 +5,101 @@ Lahat ng notable changes sa project na ito ay dokumentado dito.
 Ang format ay based sa [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 at ang project na ito ay sumusunod sa [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.6] - 2025-12-12
+
+### 🎉 Major MQTT Rebuild - Full Support for Group Chat & Private Messages
+
+Ang major update na ito ay nagdadala ng kompletong rebuild ng MQTT connection para sa tunay na real-time messaging support sa parehong Messenger Group Chats at Private Messages.
+
+### ✨ Added
+
+- **Complete MQTT Client Rebuild**
+  - Rebuilt entire MqttClient class with enhanced connection handling
+  - Added 6 new MQTT endpoint fallback URLs for better reliability
+  - Added automatic region detection and rotation
+  - Added random user agent rotation for better anti-detection
+  - Increased max reconnect attempts from 50 to 100
+  - Added message deduplication with Set-based tracking (prevents duplicate message events)
+  - Added periodic sync interval for better message delivery
+
+- **Enhanced Message Parsing for Group Chats**
+  - Improved `extractThreadId()` with 15+ different threadID extraction methods
+  - Added support for `thread.thread_key.thread_fbid` nested structures
+  - Added support for `conversation_id` field
+  - Better isGroup detection based on threadID length
+
+- **Enhanced Message Parsing for Private Messages**
+  - Improved `extractSenderId()` with 12+ sender ID extraction methods
+  - Added support for `message_sender.id`, `from.id`, `user_id` fields
+  - Better handling of author field with colon splitting
+
+- **New MQTT Topics**
+  - Added `/t_ms_gd` topic for additional message sync
+  - Added `/t_rtc_multi` topic for multi-party RTC
+  - Added `/t_trace` topic for tracing
+  - Added `/t_rtc_log` topic for RTC logging
+  - Added `/ig_messaging_events` topic for Instagram messaging
+  - Added `/ig_realtime_sub` topic for Instagram realtime subscriptions
+
+- **New Handler Functions**
+  - Added `handleInstagramMessaging()` for Instagram message events
+  - Added `handleRegionHint()` for dynamic region switching
+  - Added `handleDisconnectNotify()` for graceful disconnect handling
+  - Added `handleMessageReaction()` for reaction events
+  - Added `processStepData()` for step-based Lightspeed data
+  - Added `processPayload()` helper for consistent payload parsing
+
+- **New Message Extraction Methods**
+  - Added `extractThreadId()` - comprehensive thread ID extraction
+  - Added `extractSenderId()` - comprehensive sender ID extraction
+  - Added `extractMessageId()` - comprehensive message ID extraction
+  - Added `extractTimestamp()` - comprehensive timestamp extraction
+  - Added `extractReplyInfo()` - extract reply/quoted message info
+
+- **New Utility Methods**
+  - Added `getLastMessageTimestamp()` - get last received message timestamp
+  - Added `getProcessedMessageCount()` - get count of processed messages
+  - Added `detectRegion()` - automatic region detection
+  - Added `getRandomUserAgent()` - random UA rotation
+
+### 🔧 Fixed
+
+- **Group Chat Message Reception**
+  - Fixed messages from Messenger Group Chats not being received
+  - Fixed thread ID extraction from various group message formats
+  - Fixed handling of `threadKey.threadFbId` for group threads
+  - Fixed handling of `thread.thread_key.thread_fbid` nested format
+
+- **Private Message Reception**
+  - Fixed messages from Private/Direct conversations not being received
+  - Fixed thread ID extraction from `otherUserFbId` and `other_user_id`
+  - Fixed sender ID extraction from various PM formats
+
+- **Message Deduplication**
+  - Added Set-based message ID tracking to prevent duplicate events
+  - Auto-cleanup of message ID cache when exceeding 5000 entries
+  - Prevents same message from being emitted multiple times
+
+- **Connection Stability**
+  - Added additional MQTT endpoints for fallback
+  - Improved reconnection logic with better error handling
+  - Added sync interval for periodic message fetching
+  - Better handling of ERROR_QUEUE_UNDERFLOW error
+
+### 🔧 Technical Improvements
+
+- Refactored message extraction into dedicated helper methods
+- Added support for Instagram messaging topics
+- Improved Lightspeed data processing with `processStepData()`
+- Better handling of `deltas`, `batches`, `threads`, and `messages` arrays
+- Enhanced attachment parsing with `original_dimensions` support
+- Enhanced mention parsing with `user_id` field support
+- Added `message_reaction` event type for reactions
+- Better handling of disconnect notifications with auto-reconnect
+- Improved logging for received messages with isGroup indicator
+
+---
+
 ## [0.6.5] - 2025-12-12
 
 ### 🔧 Fixed

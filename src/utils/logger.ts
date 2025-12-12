@@ -210,7 +210,7 @@ export class Logger {
     const banner = `
 ${chalk.cyan('╔═══════════════════════════════════════════════════════════════╗')}
 ${chalk.cyan('║')}  ${chalk.yellow('🌟 LIWANAG FCA')} - Filipino Facebook API Library               ${chalk.cyan('║')}
-${chalk.cyan('║')}  Version ${version} | Node.js ${nodeVersion}                              ${chalk.cyan('║')}
+${chalk.cyan('║')}  Version ${version} | Node.js ${nodeVersion}                             ${chalk.cyan('║')}
 ${chalk.cyan('╚═══════════════════════════════════════════════════════════════╝')}
 `;
     console.log(banner);

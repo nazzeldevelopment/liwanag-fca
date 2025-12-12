@@ -1,6 +1,6 @@
 {
   "name": "liwanag-fca",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "description": "🌟 Liwanag - Filipino Facebook Chat API Library. Comprehensive at user-friendly na Filipino version ng Facebook Chat API para sa mga Filipino developers.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

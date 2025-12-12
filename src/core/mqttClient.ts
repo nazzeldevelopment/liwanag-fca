@@ -44,16 +44,42 @@ const MQTT_TOPICS = [
   '/t_p',
   '/graphql',
   '/t_region_hint',
-  '/notify_disconnect_v2'
+  '/notify_disconnect_v2',
+  '/t_ms_gd',
+  '/t_rtc_multi',
+  '/t_trace',
+  '/t_rtc_log',
+  '/ig_messaging_events',
+  '/ig_realtime_sub'
 ];
 
 const FB_APP_ID = '219994525426954';
+const MSGR_APP_ID = '256002347743983';
+const INSTAGRAM_APP_ID = '567067343352427';
 
 const MQTT_ENDPOINTS = [
   'wss://edge-chat.messenger.com/chat',
   'wss://edge-chat.facebook.com/chat',
   'wss://edge-chat.messenger.com/mqtt',
-  'wss://mqtt-mini.facebook.com:443/mqtt'
+  'wss://mqtt-mini.facebook.com:443/mqtt',
+  'wss://z-1-edge-chat.messenger.com/chat',
+  'wss://z-p3-edge-chat.messenger.com/chat'
+];
+
+const DELTA_CLASSES = [
+  'NewMessage',
+  'ReadReceipt',
+  'AdminTextMessage',
+  'ForcedFetch',
+  'DeliveryReceipt',
+  'MarkRead',
+  'ThreadName',
+  'ParticipantsAddedToGroupThread',
+  'ParticipantLeftGroupThread',
+  'ThreadMuteSettings',
+  'ThreadAction',
+  'MessageReaction',
+  'RepliedMessage'
 ];
 
 export class MqttClient extends EventEmitter {
@@ -64,13 +90,14 @@ export class MqttClient extends EventEmitter {
   private config: MqttConfig;
   private isConnected: boolean = false;
   private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 50;
+  private maxReconnectAttempts: number = 100;
   private lastSeqId: string = '';
   private syncToken: string = '';
   private sessionId: number;
   private deviceId: string;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private pingInterval: NodeJS.Timeout | null = null;
+  private syncInterval: NodeJS.Timeout | null = null;
   private lastPingTime: number = 0;
   private connectionStartTime: number = 0;
   private currentEndpointIndex: number = 0;
@@ -79,6 +106,8 @@ export class MqttClient extends EventEmitter {
   private requestId: number = 1;
   private irisSeqId: string = '';
   private irisSnapshotTimestampMs: string = '';
+  private messageIds: Set<string> = new Set();
+  private lastMessageTimestamp: number = 0;
 
   constructor(
     userId: string,
@@ -90,8 +119,8 @@ export class MqttClient extends EventEmitter {
     this.userId = userId;
     this.appState = appState;
     this.config = {
-      region: config.region || 'prn',
-      userAgent: config.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      region: config.region || this.detectRegion(),
+      userAgent: config.userAgent || this.getRandomUserAgent(),
       selfListen: config.selfListen ?? false,
       listenEvents: config.listenEvents ?? true,
       updatePresence: config.updatePresence ?? true
@@ -101,6 +130,24 @@ export class MqttClient extends EventEmitter {
     this.deviceId = this.generateDeviceId();
     this.epochId = Date.now();
     this.mqttSessionId = Math.floor(Math.random() * 0x7FFFFFFF);
+    
+    this.messageIds = new Set();
+  }
+
+  private detectRegion(): string {
+    const regions = ['prn', 'pnb', 'ash', 'frc', 'sin', 'hkg', 'syd'];
+    return regions[Math.floor(Math.random() * regions.length)];
+  }
+
+  private getRandomUserAgent(): string {
+    const userAgents = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0'
+    ];
+    return userAgents[Math.floor(Math.random() * userAgents.length)];
   }
 
   private generateDeviceId(): string {
@@ -113,7 +160,9 @@ export class MqttClient extends EventEmitter {
   }
 
   private generateClientId(): string {
-    return `mqttwsclient_${this.userId}_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substr(2, 8);
+    return `mqttwsclient_${this.userId}_${timestamp}_${random}`;
   }
 
   private getCookieString(): string {
@@ -136,8 +185,10 @@ export class MqttClient extends EventEmitter {
   }
 
   private buildUsername(): string {
+    const cUser = this.getCookieValue('c_user') || this.userId;
+    
     const payload = {
-      u: this.userId,
+      u: cUser,
       s: this.mqttSessionId,
       cp: 3,
       ecp: 10,
@@ -162,7 +213,6 @@ export class MqttClient extends EventEmitter {
 
   private buildConnectPayload(): string {
     const cid = this.getCookieValue('c_user') || this.userId;
-    const dtsg = this.appState.fbDtsg || '';
     
     return JSON.stringify({
       app_id: FB_APP_ID,
@@ -200,8 +250,8 @@ export class MqttClient extends EventEmitter {
 
         const options: mqtt.IClientOptions = {
           clientId: this.generateClientId(),
-          protocolId: 'MQIsdp',
-          protocolVersion: 3,
+          protocolId: 'MQTT',
+          protocolVersion: 4,
           clean: true,
           keepalive: 60,
           connectTimeout: 60000,
@@ -214,7 +264,11 @@ export class MqttClient extends EventEmitter {
               'User-Agent': this.config.userAgent,
               'Origin': 'https://www.messenger.com',
               'Host': baseEndpoint.replace('wss://', '').split('/')[0],
-              'Sec-WebSocket-Protocol': 'wss'
+              'Sec-WebSocket-Protocol': 'wss',
+              'Sec-WebSocket-Extensions': 'permessage-deflate; client_max_window_bits',
+              'Accept-Language': 'en-US,en;q=0.9',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
             },
             handshakeTimeout: 30000
           }
@@ -231,7 +285,7 @@ export class MqttClient extends EventEmitter {
             }
             this.scheduleReconnect();
           }
-        }, 30000);
+        }, 45000);
 
         this.client.on('connect', () => {
           clearTimeout(connectTimeout);
@@ -241,8 +295,9 @@ export class MqttClient extends EventEmitter {
           
           this.subscribeToTopics();
           this.sendPresenceRequest();
-          this.sendSyncRequest();
+          this.sendInitialSync();
           this.startPingInterval();
+          this.startSyncInterval();
           
           this.emit('connected');
           resolve();
@@ -268,6 +323,7 @@ export class MqttClient extends EventEmitter {
           const wasConnected = this.isConnected;
           this.isConnected = false;
           this.stopPingInterval();
+          this.stopSyncInterval();
           
           if (wasConnected) {
             this.logger.warning('MQTT connection closed');
@@ -314,6 +370,23 @@ export class MqttClient extends EventEmitter {
     if (this.pingInterval) {
       clearInterval(this.pingInterval);
       this.pingInterval = null;
+    }
+  }
+
+  private startSyncInterval(): void {
+    this.stopSyncInterval();
+    
+    this.syncInterval = setInterval(() => {
+      if (this.client && this.isConnected) {
+        this.sendSyncRequest();
+      }
+    }, 60000);
+  }
+
+  private stopSyncInterval(): void {
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
+      this.syncInterval = null;
     }
   }
 
@@ -372,11 +445,9 @@ export class MqttClient extends EventEmitter {
     for (const topic of MQTT_TOPICS) {
       this.client.subscribe(topic, { qos: 0 }, (err) => {
         if (err) {
-          this.logger.error(`Failed to subscribe to ${topic}`, { 
+          this.logger.debug(`Failed to subscribe to ${topic}`, { 
             error: err.message 
           });
-        } else {
-          this.logger.debug(`Subscribed to ${topic}`);
         }
       });
     }
@@ -396,6 +467,30 @@ export class MqttClient extends EventEmitter {
     );
   }
 
+  private sendInitialSync(): void {
+    if (!this.client) return;
+
+    const createQueuePayload = {
+      sync_api_version: 10,
+      max_deltas_able_to_process: 1000,
+      delta_batch_size: 500,
+      encoding: 'JSON',
+      entity_fbid: this.userId,
+      initial_titan_sequence_id: '0',
+      device_params: null
+    };
+
+    this.client.publish(
+      '/messenger_sync_create_queue',
+      JSON.stringify(createQueuePayload),
+      { qos: 1 }
+    );
+
+    setTimeout(() => {
+      this.sendSyncRequest();
+    }, 500);
+  }
+
   private sendSyncRequest(): void {
     if (!this.client) return;
 
@@ -405,36 +500,39 @@ export class MqttClient extends EventEmitter {
       delta_batch_size: 500,
       encoding: 'JSON',
       entity_fbid: this.userId,
-      initial_titan_sequence_id: this.lastSeqId || '0',
-      device_params: null
-    };
-
-    this.client.publish(
-      '/messenger_sync_create_queue',
-      JSON.stringify(syncPayload),
-      { qos: 1 }
-    );
-
-    const syncPayload2 = {
-      sync_api_version: 10,
-      max_deltas_able_to_process: 1000,
-      delta_batch_size: 500,
-      encoding: 'JSON',
-      entity_fbid: this.userId,
       last_seq_id: this.lastSeqId || '0',
       sync_token: this.syncToken || null,
       queue_type: 'messages',
       queue_params: {
-        limit: 1,
-        tags: ['inbox', 'other']
+        limit: 50,
+        tags: ['inbox', 'other', 'pending', 'archived']
       }
     };
 
     this.client.publish(
       '/messenger_sync_get_diffs',
-      JSON.stringify(syncPayload2),
+      JSON.stringify(syncPayload),
       { qos: 1 }
     );
+
+    const graphQLPayload = {
+      request_id: ++this.requestId,
+      type: 1,
+      payload: JSON.stringify({
+        sync_groups: [
+          'INBOX',
+          'MESSAGE_REQUESTS', 
+          'ARCHIVED',
+          'OTHER'
+        ],
+        database: 2,
+        version: 1,
+        last_applied_cursor: null
+      }),
+      app_id: FB_APP_ID
+    };
+
+    this.client.publish('/ls_req', JSON.stringify(graphQLPayload), { qos: 0 });
   }
 
   private handleMessage(topic: string, payload: Buffer): void {
@@ -451,7 +549,6 @@ export class MqttClient extends EventEmitter {
             try {
               data = JSON.parse(jsonMatch[0]);
             } catch {
-              this.logger.debug(`Non-JSON message on ${topic}`, { length: payload.length });
               return;
             }
           } else {
@@ -464,6 +561,9 @@ export class MqttClient extends EventEmitter {
 
       switch (topic) {
         case '/t_ms':
+          this.handleMessengerSync(data);
+          break;
+        case '/t_ms_gd':
           this.handleMessengerSync(data);
           break;
         case '/thread_typing':
@@ -485,6 +585,9 @@ export class MqttClient extends EventEmitter {
         case '/messaging_events':
           this.handleMessagingEvents(data);
           break;
+        case '/ig_messaging_events':
+          this.handleInstagramMessaging(data);
+          break;
         case '/t_p':
           this.handlePresenceTopic(data);
           break;
@@ -500,11 +603,15 @@ export class MqttClient extends EventEmitter {
         case '/ls_foreground_state':
           this.handleForegroundState(data);
           break;
+        case '/t_region_hint':
+          this.handleRegionHint(data);
+          break;
+        case '/notify_disconnect':
+        case '/notify_disconnect_v2':
+          this.handleDisconnectNotify(data);
+          break;
         default:
           if (data && Object.keys(data).length > 0) {
-            this.logger.debug(`Received message on ${topic}`, { 
-              dataKeys: Object.keys(data) 
-            });
             this.tryExtractMessage(data, topic);
           }
       }
@@ -518,8 +625,10 @@ export class MqttClient extends EventEmitter {
   private handleMessengerSync(data: any): void {
     if (data.errorCode) {
       this.logger.warning('Sync error', { code: data.errorCode });
-      if (data.errorCode === 'ERROR_QUEUE_NOT_FOUND' || data.errorCode === 'ERROR_QUEUE_OVERFLOW') {
-        this.sendSyncRequest();
+      if (data.errorCode === 'ERROR_QUEUE_NOT_FOUND' || 
+          data.errorCode === 'ERROR_QUEUE_OVERFLOW' ||
+          data.errorCode === 'ERROR_QUEUE_UNDERFLOW') {
+        setTimeout(() => this.sendInitialSync(), 1000);
       }
       return;
     }
@@ -541,24 +650,27 @@ export class MqttClient extends EventEmitter {
     }
 
     if (data.payload) {
-      try {
-        const payload = typeof data.payload === 'string' ? JSON.parse(data.payload) : data.payload;
-        if (payload.deltas && Array.isArray(payload.deltas)) {
-          for (const delta of payload.deltas) {
-            this.processDelta(delta);
-          }
-        }
-      } catch {
-        // ignore parse errors
-      }
+      this.processPayload(data.payload);
     }
 
     if (data.threads && Array.isArray(data.threads)) {
       for (const thread of data.threads) {
         if (thread.messages && Array.isArray(thread.messages)) {
           for (const msg of thread.messages) {
-            this.processDelta(msg);
+            const processedMsg = { ...msg };
+            if (!processedMsg.threadId && !processedMsg.threadKey) {
+              processedMsg.threadId = thread.threadId || thread.thread_id || thread.id;
+              processedMsg.threadKey = thread.threadKey || thread.thread_key;
+            }
+            this.processDelta(processedMsg);
           }
+        }
+        if (thread.lastMessage) {
+          const lastMsg = { ...thread.lastMessage };
+          if (!lastMsg.threadId && !lastMsg.threadKey) {
+            lastMsg.threadId = thread.threadId || thread.thread_id || thread.id;
+          }
+          this.processDelta(lastMsg);
         }
       }
     }
@@ -572,28 +684,74 @@ export class MqttClient extends EventEmitter {
     if (data.lastIssuedSeqId) {
       this.lastSeqId = data.lastIssuedSeqId.toString();
     }
-
     if (data.syncToken) {
       this.syncToken = data.syncToken;
     }
-
     if (data.irisSeqId) {
       this.irisSeqId = data.irisSeqId.toString();
     }
-
     if (data.irisSnapshotTimestampMs) {
       this.irisSnapshotTimestampMs = data.irisSnapshotTimestampMs.toString();
     }
-
     if (data.firstDeltaSeqId) {
       this.lastSeqId = data.firstDeltaSeqId.toString();
+    }
+  }
+
+  private processPayload(payload: any): void {
+    try {
+      let parsed: any;
+      
+      if (Buffer.isBuffer(payload)) {
+        const payloadStr = payload.toString('utf8');
+        if (!payloadStr || payloadStr.trim().length === 0) {
+          return;
+        }
+        try {
+          parsed = JSON.parse(payloadStr);
+        } catch {
+          return;
+        }
+      } else if (typeof payload === 'string') {
+        if (!payload || payload.trim().length === 0) {
+          return;
+        }
+        try {
+          parsed = JSON.parse(payload);
+        } catch {
+          return;
+        }
+      } else if (typeof payload === 'object' && payload !== null) {
+        parsed = payload;
+      } else {
+        return;
+      }
+      
+      if (parsed.deltas && Array.isArray(parsed.deltas)) {
+        for (const delta of parsed.deltas) {
+          this.processDelta(delta);
+        }
+      }
+      if (parsed.data) {
+        this.processLightspeedData(parsed.data);
+      }
+      if (parsed.threads && Array.isArray(parsed.threads)) {
+        for (const thread of parsed.threads) {
+          if (thread.messages && Array.isArray(thread.messages)) {
+            for (const msg of thread.messages) {
+              this.processLightspeedMessage(msg, thread);
+            }
+          }
+        }
+      }
+    } catch {
     }
   }
 
   private processDelta(delta: any): void {
     if (!delta) return;
 
-    const deltaClass = delta.class || delta.deltaClass || delta.type;
+    const deltaClass = delta.class || delta.deltaClass || delta.type || delta.__typename;
 
     switch (deltaClass) {
       case 'NewMessage':
@@ -630,11 +788,18 @@ export class MqttClient extends EventEmitter {
       case 'ThreadAction':
         this.handleThreadAction(delta);
         break;
+      case 'MessageReaction':
+        this.handleMessageReaction(delta);
+        break;
+      case 'RepliedMessage':
+        this.handleNewMessage(delta);
+        break;
       case 'NoOp':
         break;
       default:
-        if (delta.messageMetadata || delta.body !== undefined) {
+        if (delta.messageMetadata || delta.body !== undefined || delta.message || delta.snippet) {
           this.handleNewMessage(delta);
+        } else if (delta.irisSeqId || delta.deltas) {
         } else {
           this.emit('delta', delta);
         }
@@ -643,7 +808,9 @@ export class MqttClient extends EventEmitter {
 
   private handleNewMessage(delta: any): void {
     const messageData = delta.messageMetadata || delta;
-    const body = delta.body || delta.snippet || delta.text || delta.message?.text || '';
+    const body = delta.body || delta.snippet || delta.text || 
+                 delta.message?.text || delta.message?.body || 
+                 delta.content || '';
     
     let threadID = '';
     let isGroup = false;
@@ -659,58 +826,38 @@ export class MqttClient extends EventEmitter {
       } else if (threadKey.otherUserID) {
         threadID = threadKey.otherUserID.toString();
         isGroup = false;
+      } else if (threadKey.other_user_id) {
+        threadID = threadKey.other_user_id.toString();
+        isGroup = false;
+      } else if (threadKey.thread_fbid) {
+        threadID = threadKey.thread_fbid.toString();
+        isGroup = true;
       }
-    } else if (delta.threadId) {
-      threadID = delta.threadId.toString();
+    }
+    
+    if (!threadID) {
+      threadID = this.extractThreadId(delta, messageData);
       isGroup = threadID.length > 15;
-    } else if (delta.threadFbId) {
-      threadID = delta.threadFbId.toString();
-      isGroup = true;
-    } else if (delta.thread_fbid) {
-      threadID = delta.thread_fbid.toString();
-      isGroup = true;
-    } else if (delta.other_user_fbid) {
-      threadID = delta.other_user_fbid.toString();
-      isGroup = false;
-    } else if (delta.thread?.thread_key?.thread_fbid) {
-      threadID = delta.thread.thread_key.thread_fbid.toString();
-      isGroup = true;
-    } else if (delta.thread?.thread_key?.other_user_id) {
-      threadID = delta.thread.thread_key.other_user_id.toString();
-      isGroup = false;
     }
 
-    const senderID = (
-      messageData.actorFbId || 
-      delta.senderId || 
-      delta.senderFbId || 
-      delta.authorId ||
-      delta.author?.split(':')[1] ||
-      delta.author ||
-      delta.sender_id ||
-      delta.from?.id ||
-      delta.message_sender?.id ||
-      ''
-    ).toString();
+    const senderID = this.extractSenderId(delta, messageData);
     
-    const messageID = (
-      messageData.messageId || 
-      delta.messageId || 
-      delta.mid || 
-      delta.id ||
-      delta.message_id ||
-      ''
-    ).toString();
+    const messageID = this.extractMessageId(delta, messageData);
     
-    const timestamp = parseInt(
-      messageData.timestamp || 
-      delta.timestamp || 
-      delta.offlineThreadingId ||
-      delta.timestamp_precise
-    ) || Date.now();
+    const timestamp = this.extractTimestamp(delta, messageData);
 
     if (!threadID || !messageID) {
       return;
+    }
+
+    if (this.messageIds.has(messageID)) {
+      return;
+    }
+    
+    this.messageIds.add(messageID);
+    if (this.messageIds.size > 5000) {
+      const idsArray = Array.from(this.messageIds);
+      this.messageIds = new Set(idsArray.slice(-2500));
     }
 
     if (!this.config.selfListen && senderID === this.userId) {
@@ -722,32 +869,32 @@ export class MqttClient extends EventEmitter {
       delta.fileAttachments || 
       delta.blob_attachments ||
       delta.extensible_attachments ||
+      delta.message?.attachments ||
       []
     );
     const mentions = this.parseMentions(
       delta.data?.prng || 
       delta.mentions || 
       delta.message_tags ||
+      delta.message?.mentions ||
       []
     );
 
     const message: Message = {
       messageID,
       threadID,
-      senderID,
-      body,
+      senderID: senderID || 'unknown',
+      body: body.toString(),
       timestamp,
       type: this.determineMessageType(delta),
       attachments,
       mentions,
       isGroup,
       isUnread: delta.isUnread ?? delta.unread ?? true,
-      replyToMessage: delta.replyToMessageId || delta.replied_to_message ? {
-        messageID: delta.replyToMessageId || delta.replied_to_message?.id || '',
-        senderID: delta.replyToSenderId || delta.replied_to_message?.sender_id || '',
-        body: delta.replyToMessage || delta.replied_to_message?.text || ''
-      } : undefined
+      replyToMessage: this.extractReplyInfo(delta)
     };
+
+    this.lastMessageTimestamp = timestamp;
 
     this.logger.info('Natanggap na mensahe', {
       from: senderID,
@@ -759,18 +906,95 @@ export class MqttClient extends EventEmitter {
     this.emit('message', message);
   }
 
+  private extractThreadId(delta: any, messageData: any): string {
+    return (
+      delta.threadId ||
+      delta.thread_id ||
+      delta.threadFbId ||
+      delta.thread_fbid ||
+      delta.other_user_fbid ||
+      delta.otherUserFbId ||
+      messageData.threadId ||
+      messageData.thread_id ||
+      delta.thread?.thread_key?.thread_fbid ||
+      delta.thread?.thread_key?.other_user_id ||
+      delta.thread?.id ||
+      delta.message_thread?.id ||
+      delta.conversation_id ||
+      ''
+    ).toString();
+  }
+
+  private extractSenderId(delta: any, messageData: any): string {
+    return (
+      messageData.actorFbId || 
+      messageData.actor_fbid ||
+      delta.senderId || 
+      delta.sender_id ||
+      delta.senderFbId || 
+      delta.authorId ||
+      delta.author?.split(':')[1] ||
+      delta.author ||
+      delta.from?.id ||
+      delta.message_sender?.id ||
+      delta.message?.sender_id ||
+      delta.userId ||
+      delta.user_id ||
+      ''
+    ).toString();
+  }
+
+  private extractMessageId(delta: any, messageData: any): string {
+    return (
+      messageData.messageId || 
+      messageData.message_id ||
+      delta.messageId || 
+      delta.message_id ||
+      delta.mid || 
+      delta.id ||
+      delta.message?.id ||
+      delta.message?.mid ||
+      ''
+    ).toString();
+  }
+
+  private extractTimestamp(delta: any, messageData: any): number {
+    return parseInt(
+      messageData.timestamp || 
+      delta.timestamp || 
+      delta.timestamp_precise ||
+      delta.offlineThreadingId ||
+      delta.message?.timestamp ||
+      delta.createdTime ||
+      delta.created_time
+    ) || Date.now();
+  }
+
+  private extractReplyInfo(delta: any): Message['replyToMessage'] {
+    if (delta.replyToMessageId || delta.replied_to_message || delta.reply_to_message) {
+      const repliedTo = delta.replied_to_message || delta.reply_to_message || {};
+      return {
+        messageID: delta.replyToMessageId || repliedTo.id || repliedTo.message_id || '',
+        senderID: delta.replyToSenderId || repliedTo.sender_id || repliedTo.author || '',
+        body: delta.replyToMessage || repliedTo.text || repliedTo.body || repliedTo.snippet || ''
+      };
+    }
+    return undefined;
+  }
+
   private parseAttachments(attachments: any[]): any[] {
     if (!Array.isArray(attachments)) return [];
     
     return attachments.map((att: any) => ({
-      type: att.mimeType?.split('/')[0] || att.type || 'file',
-      url: att.playableUrl || att.url || att.previewUrl || att.largePreviewUrl || '',
-      id: att.id || att.attachmentId || '',
-      filename: att.filename || att.name || '',
+      type: att.mimeType?.split('/')[0] || att.type || att.__typename || 'file',
+      url: att.playableUrl || att.url || att.previewUrl || 
+           att.largePreviewUrl || att.preview?.uri || att.large_preview?.uri || '',
+      id: att.id || att.attachmentId || att.legacy_attachment_id || '',
+      filename: att.filename || att.name || att.title || '',
       size: att.fileSize || att.size || 0,
-      width: att.width,
-      height: att.height,
-      duration: att.playableDurationInMs || att.duration
+      width: att.width || att.original_dimensions?.x,
+      height: att.height || att.original_dimensions?.y,
+      duration: att.playableDurationInMs || att.duration || att.video_duration
     }));
   }
 
@@ -778,34 +1002,37 @@ export class MqttClient extends EventEmitter {
     if (!Array.isArray(mentions)) return [];
     
     return mentions.map((m: any) => ({
-      id: m.i || m.id || m.userId,
+      id: m.i || m.id || m.userId || m.user_id,
       offset: m.o || m.offset || 0,
       length: m.l || m.length || 0,
-      name: m.name || ''
+      name: m.name || m.text || ''
     }));
   }
 
   private determineMessageType(delta: any): 'text' | 'sticker' | 'photo' | 'video' | 'audio' | 'file' | 'gif' | 'location' | 'share' {
-    if (delta.stickerId || delta.stickerID) return 'sticker';
-    if (delta.shareInfo || delta.story) return 'share';
-    if (delta.coordinates || delta.location) return 'location';
+    if (delta.stickerId || delta.stickerID || delta.sticker) return 'sticker';
+    if (delta.shareInfo || delta.story || delta.share) return 'share';
+    if (delta.coordinates || delta.location || delta.extensibleAttachment?.story_attachment?.target?.location) return 'location';
     
-    if (delta.attachments?.length > 0 || delta.fileAttachments?.length > 0) {
-      const att = delta.attachments?.[0] || delta.fileAttachments?.[0];
-      const mime = att?.mimeType || att?.contentType || '';
-      const type = att?.type || '';
+    const attachments = delta.attachments || delta.fileAttachments || 
+                       delta.blob_attachments || delta.message?.attachments || [];
+    
+    if (attachments.length > 0) {
+      const att = attachments[0];
+      const mime = att?.mimeType || att?.contentType || att?.mime_type || '';
+      const type = att?.type || att?.__typename || '';
       
-      if (mime.startsWith('image/gif') || type === 'gif') return 'gif';
-      if (mime.startsWith('image/') || type === 'photo' || type === 'image') return 'photo';
-      if (mime.startsWith('video/') || type === 'video') return 'video';
-      if (mime.startsWith('audio/') || type === 'audio' || type === 'voice') return 'audio';
+      if (mime.startsWith('image/gif') || type === 'gif' || type.includes('Animated')) return 'gif';
+      if (mime.startsWith('image/') || type === 'photo' || type === 'image' || type.includes('Photo')) return 'photo';
+      if (mime.startsWith('video/') || type === 'video' || type.includes('Video')) return 'video';
+      if (mime.startsWith('audio/') || type === 'audio' || type === 'voice' || type.includes('Audio')) return 'audio';
       return 'file';
     }
     return 'text';
   }
 
   private handleAdminMessage(delta: any): void {
-    const type = delta.type || delta.adminType;
+    const type = delta.type || delta.adminType || delta.untypedData?.type;
     
     switch (type) {
       case 'change_thread_nickname':
@@ -831,9 +1058,10 @@ export class MqttClient extends EventEmitter {
 
   private handleThreadNameChange(delta: any): void {
     const threadKey = delta.messageMetadata?.threadKey || delta.threadKey || {};
-    const threadID = threadKey.threadFbId || threadKey.otherUserFbId || delta.threadId || '';
-    const name = delta.name || delta.threadName || '';
-    const actorID = delta.messageMetadata?.actorFbId || delta.actorFbId || '';
+    const threadID = threadKey.threadFbId || threadKey.thread_fbid || 
+                     threadKey.otherUserFbId || delta.threadId || '';
+    const name = delta.name || delta.threadName || delta.newTitle || '';
+    const actorID = delta.messageMetadata?.actorFbId || delta.actorFbId || delta.actor_fbid || '';
 
     this.emit('thread_name', {
       threadID: threadID.toString(),
@@ -845,12 +1073,12 @@ export class MqttClient extends EventEmitter {
 
   private handleParticipantAdded(delta: any): void {
     const threadKey = delta.messageMetadata?.threadKey || delta.threadKey || {};
-    const threadID = (threadKey.threadFbId || delta.threadId || '').toString();
-    const addedParticipants = delta.addedParticipants || delta.participantsAdded || [];
-    const actorID = (delta.messageMetadata?.actorFbId || delta.actorFbId || '').toString();
+    const threadID = (threadKey.threadFbId || threadKey.thread_fbid || delta.threadId || '').toString();
+    const addedParticipants = delta.addedParticipants || delta.participantsAdded || delta.added_participants || [];
+    const actorID = (delta.messageMetadata?.actorFbId || delta.actorFbId || delta.actor_fbid || '').toString();
 
     const userIDs = addedParticipants.map((p: any) => 
-      (p.userFbId || p.id || p.participantId || '').toString()
+      (p.userFbId || p.user_fbid || p.id || p.participantId || p.participant_id || '').toString()
     );
 
     this.emit('participant_added', {
@@ -863,9 +1091,10 @@ export class MqttClient extends EventEmitter {
 
   private handleParticipantLeft(delta: any): void {
     const threadKey = delta.messageMetadata?.threadKey || delta.threadKey || {};
-    const threadID = (threadKey.threadFbId || delta.threadId || '').toString();
-    const leftParticipantFbId = delta.leftParticipantFbId || delta.participantFbId || '';
-    const actorID = (delta.messageMetadata?.actorFbId || delta.actorFbId || '').toString();
+    const threadID = (threadKey.threadFbId || threadKey.thread_fbid || delta.threadId || '').toString();
+    const leftParticipantFbId = delta.leftParticipantFbId || delta.left_participant_fbid || 
+                                 delta.participantFbId || delta.participant_fbid || '';
+    const actorID = (delta.messageMetadata?.actorFbId || delta.actorFbId || delta.actor_fbid || '').toString();
 
     this.emit('participant_left', {
       threadID,
@@ -879,10 +1108,28 @@ export class MqttClient extends EventEmitter {
     this.emit('thread_action', delta);
   }
 
+  private handleMessageReaction(delta: any): void {
+    const threadKey = delta.threadKey || delta.messageMetadata?.threadKey || {};
+    const threadID = (threadKey.threadFbId || threadKey.otherUserFbId || delta.threadId || '').toString();
+    const messageID = delta.messageId || delta.message_id || '';
+    const reaction = delta.reaction || delta.emoji || '';
+    const actorID = (delta.actorFbId || delta.senderId || '').toString();
+
+    this.emit('message_reaction', {
+      threadID,
+      messageID: messageID.toString(),
+      reaction,
+      senderID: actorID,
+      timestamp: Date.now()
+    });
+  }
+
   private handleTypingEvent(data: any): void {
-    const senderID = (data.sender_fbid || data.from || data.senderId || data.userId || '').toString();
-    const threadID = (data.thread || data.thread_fbid || data.threadId || '').toString();
-    const isTyping = data.state === 1 || data.isTyping === true;
+    const senderID = (data.sender_fbid || data.from || data.senderId || 
+                      data.userId || data.user_id || data.sender).toString();
+    const threadID = (data.thread || data.thread_fbid || data.threadId || 
+                      data.thread_id || data.to).toString();
+    const isTyping = data.state === 1 || data.isTyping === true || data.typing === true;
 
     if (senderID && threadID) {
       this.emit('typing', {
@@ -896,12 +1143,12 @@ export class MqttClient extends EventEmitter {
   private handlePresenceEvent(data: any): void {
     if (data.list && Array.isArray(data.list)) {
       for (const presence of data.list) {
-        const userID = (presence.u || presence.userId || '').toString();
+        const userID = (presence.u || presence.userId || presence.user_id || '').toString();
         if (userID) {
           this.emit('presence', {
             userID,
             isActive: presence.p !== 0,
-            lastActive: presence.lat || presence.lastActiveTime,
+            lastActive: presence.lat || presence.lastActiveTime || presence.last_active,
             status: presence.p === 2 ? 'active' : presence.p === 0 ? 'offline' : 'idle'
           });
         }
@@ -913,9 +1160,9 @@ export class MqttClient extends EventEmitter {
     if (data.list_type === 'full' && data.list) {
       for (const item of data.list) {
         this.emit('presence', {
-          userID: item.u?.toString(),
+          userID: (item.u || '').toString(),
           isActive: item.p === 2,
-          lastActive: item.l
+          lastActive: item.l || item.lat
         });
       }
     }
@@ -928,6 +1175,8 @@ export class MqttClient extends EventEmitter {
       for (const delta of data.deltas) {
         this.processDelta(delta);
       }
+    } else if (data.type === 'messaging') {
+      this.handleMessagingEvents(data);
     } else {
       this.emit('legacy_event', data);
     }
@@ -937,6 +1186,15 @@ export class MqttClient extends EventEmitter {
     if (data.deltas) {
       for (const delta of data.deltas) {
         this.processDelta(delta);
+      }
+    }
+    if (data.threads) {
+      for (const thread of data.threads) {
+        if (thread.messages) {
+          for (const msg of thread.messages) {
+            this.processDelta({ ...msg, threadId: thread.threadId || thread.id });
+          }
+        }
       }
     }
     this.emit('inbox', data);
@@ -957,16 +1215,22 @@ export class MqttClient extends EventEmitter {
             action.message_id) {
           const message = this.convertMercuryToMessage(action);
           if (message.threadID && message.messageID) {
-            this.emit('message', message);
+            if (!this.messageIds.has(message.messageID)) {
+              this.messageIds.add(message.messageID);
+              this.emit('message', message);
+            }
           }
         }
       }
     }
-    if (data.payload && data.payload.actions) {
+    if (data.payload?.actions) {
       for (const action of data.payload.actions) {
         const message = this.convertMercuryToMessage(action);
         if (message.threadID && message.messageID) {
-          this.emit('message', message);
+          if (!this.messageIds.has(message.messageID)) {
+            this.messageIds.add(message.messageID);
+            this.emit('message', message);
+          }
         }
       }
     }
@@ -986,24 +1250,18 @@ export class MqttClient extends EventEmitter {
     if (data.event) {
       this.emit('messaging_event', data.event);
     }
-  }
-
-  private handleLightspeedResponse(data: any): void {
-    if (data.payload) {
-      try {
-        const payload = typeof data.payload === 'string' ? JSON.parse(data.payload) : data.payload;
-        if (payload.deltas) {
-          for (const delta of payload.deltas) {
-            this.processDelta(delta);
+    if (data.threads) {
+      for (const thread of data.threads) {
+        if (thread.messages) {
+          for (const msg of thread.messages) {
+            this.processDelta({ ...msg, threadId: thread.id || thread.threadId });
           }
         }
-        if (payload.data) {
-          this.processLightspeedData(payload.data);
-        }
-      } catch {
-        this.logger.debug('Failed to parse lightspeed payload');
       }
     }
+  }
+
+  private handleInstagramMessaging(data: any): void {
     if (data.deltas) {
       for (const delta of data.deltas) {
         this.processDelta(delta);
@@ -1014,11 +1272,65 @@ export class MqttClient extends EventEmitter {
     }
   }
 
+  private handleLightspeedResponse(data: any): void {
+    if (data.payload) {
+      this.processPayload(data.payload);
+    }
+    if (data.deltas) {
+      for (const delta of data.deltas) {
+        this.processDelta(delta);
+      }
+    }
+    if (data.data) {
+      this.processLightspeedData(data.data);
+    }
+    if (data.request_id && data.payload) {
+      try {
+        const payload = typeof data.payload === 'string' ? JSON.parse(data.payload) : data.payload;
+        if (payload.step_data) {
+          this.processStepData(payload.step_data);
+        }
+      } catch {
+      }
+    }
+  }
+
+  private processStepData(stepData: any): void {
+    if (!stepData) return;
+    
+    if (Array.isArray(stepData)) {
+      for (const step of stepData) {
+        if (step.messages) {
+          for (const msg of step.messages) {
+            this.processLightspeedMessage(msg, step.thread || {});
+          }
+        }
+        if (step.deltas) {
+          for (const delta of step.deltas) {
+            this.processDelta(delta);
+          }
+        }
+      }
+    }
+  }
+
   private processLightspeedData(data: any): void {
     if (!data) return;
     
     if (data.viewer?.message_threads?.nodes) {
       for (const thread of data.viewer.message_threads.nodes) {
+        if (thread.messages?.nodes) {
+          for (const msg of thread.messages.nodes) {
+            this.processLightspeedMessage(msg, thread);
+          }
+        }
+        if (thread.all_participants?.nodes) {
+        }
+      }
+    }
+
+    if (data.message_threads?.nodes) {
+      for (const thread of data.message_threads.nodes) {
         if (thread.messages?.nodes) {
           for (const msg of thread.messages.nodes) {
             this.processLightspeedMessage(msg, thread);
@@ -1048,6 +1360,20 @@ export class MqttClient extends EventEmitter {
         this.processDelta(delta);
       }
     }
+
+    if (data.threads && Array.isArray(data.threads)) {
+      for (const thread of data.threads) {
+        if (thread.messages?.nodes) {
+          for (const msg of thread.messages.nodes) {
+            this.processLightspeedMessage(msg, thread);
+          }
+        } else if (thread.messages && Array.isArray(thread.messages)) {
+          for (const msg of thread.messages) {
+            this.processLightspeedMessage(msg, thread);
+          }
+        }
+      }
+    }
   }
 
   private processLightspeedMessage(msg: any, thread: any): void {
@@ -1064,17 +1390,26 @@ export class MqttClient extends EventEmitter {
       isGroup = false;
     } else if (thread?.id) {
       threadID = thread.id.toString();
-      isGroup = thread.id.toString().length > 15;
-    } else if (msg.thread_id) {
+      isGroup = threadID.length > 15;
+    } else if (thread?.threadId) {
+      threadID = thread.threadId.toString();
+      isGroup = threadID.length > 15;
+    }
+    
+    if (!threadID && msg.thread_id) {
       threadID = msg.thread_id.toString();
-      isGroup = msg.thread_id.toString().length > 15;
-    } else if (msg.threadId) {
+      isGroup = threadID.length > 15;
+    } else if (!threadID && msg.threadId) {
       threadID = msg.threadId.toString();
-      isGroup = msg.threadId.toString().length > 15;
+      isGroup = threadID.length > 15;
+    } else if (!threadID && msg.thread) {
+      threadID = (msg.thread.id || msg.thread.thread_id || '').toString();
+      isGroup = threadID.length > 15;
     }
     
     const senderID = (
       msg.message_sender?.id ||
+      msg.sender?.id ||
       msg.sender_id ||
       msg.senderId ||
       msg.senderFbId ||
@@ -1082,6 +1417,7 @@ export class MqttClient extends EventEmitter {
       msg.author?.split(':')[1] ||
       msg.author ||
       msg.from?.id ||
+      msg.user_id ||
       ''
     ).toString();
     
@@ -1098,13 +1434,17 @@ export class MqttClient extends EventEmitter {
       msg.snippet || 
       msg.text || 
       msg.body ||
+      msg.content ||
       ''
     ).toString();
     
-    const timestamp = parseInt(msg.timestamp_precise || msg.timestamp) || Date.now();
+    const timestamp = parseInt(msg.timestamp_precise || msg.timestamp || msg.created_time) || Date.now();
 
     if (!threadID || !messageID) return;
     if (!senderID && !body) return;
+    
+    if (this.messageIds.has(messageID)) return;
+    this.messageIds.add(messageID);
     
     if (!this.config.selfListen && senderID === this.userId) return;
 
@@ -1115,8 +1455,8 @@ export class MqttClient extends EventEmitter {
       body,
       timestamp,
       type: this.determineMessageType(msg),
-      attachments: this.parseAttachments(msg.attachments || msg.blob_attachments || []),
-      mentions: this.parseMentions(msg.mentions || msg.message_tags || []),
+      attachments: this.parseAttachments(msg.attachments || msg.blob_attachments || msg.message?.attachments || []),
+      mentions: this.parseMentions(msg.mentions || msg.message_tags || msg.message?.mentions || []),
       isGroup,
       isUnread: msg.isUnread ?? msg.unread ?? true
     };
@@ -1138,8 +1478,15 @@ export class MqttClient extends EventEmitter {
       try {
         const payload = typeof data.payload === 'string' ? JSON.parse(data.payload) : data.payload;
         this.processLightspeedData(payload);
+        if (payload.data) {
+          this.processLightspeedData(payload.data);
+        }
       } catch {
-        this.logger.debug('Failed to parse graphql payload');
+      }
+    }
+    if (data.deltas) {
+      for (const delta of data.deltas) {
+        this.processDelta(delta);
       }
     }
   }
@@ -1151,24 +1498,40 @@ export class MqttClient extends EventEmitter {
       }
     }
     if (data.payload) {
-      try {
-        const payload = typeof data.payload === 'string' ? JSON.parse(data.payload) : data.payload;
-        if (payload.deltas) {
-          for (const delta of payload.deltas) {
-            this.processDelta(delta);
-          }
-        }
-      } catch {
-        this.logger.debug('Failed to parse orca message notification');
-      }
+      this.processPayload(data.payload);
     }
     if (data.message || data.body !== undefined) {
       this.handleNewMessage(data);
+    }
+    if (data.threads) {
+      for (const thread of data.threads) {
+        if (thread.messages) {
+          for (const msg of thread.messages) {
+            this.processDelta({ ...msg, threadId: thread.id || thread.threadId });
+          }
+        }
+      }
     }
   }
 
   private handleForegroundState(data: any): void {
     this.emit('foreground_state', data);
+  }
+
+  private handleRegionHint(data: any): void {
+    if (data.region) {
+      this.config.region = data.region;
+      this.logger.debug('Region hint received', { region: data.region });
+    }
+  }
+
+  private handleDisconnectNotify(data: any): void {
+    this.logger.warning('Disconnect notification received', data);
+    this.emit('disconnect_notify', data);
+    
+    if (data.reason === 'new_session' || data.reason === 'session_replaced') {
+      this.scheduleReconnect();
+    }
   }
 
   private tryExtractMessage(data: any, topic: string): void {
@@ -1189,8 +1552,8 @@ export class MqttClient extends EventEmitter {
       return;
     }
 
-    if (data.message || data.body !== undefined) {
-      if (data.threadId || data.thread_id || data.threadKey || data.thread_fbid) {
+    if (data.message || data.body !== undefined || data.snippet) {
+      if (data.threadId || data.thread_id || data.threadKey || data.thread_fbid || data.thread) {
         this.handleNewMessage(data);
       } else {
         this.processLightspeedMessage(data, {});
@@ -1198,51 +1561,54 @@ export class MqttClient extends EventEmitter {
       return;
     }
 
-    if (data.viewer?.message_threads?.nodes || data.message_thread?.messages?.nodes) {
+    if (data.viewer?.message_threads?.nodes || 
+        data.message_thread?.messages?.nodes ||
+        data.message_threads?.nodes) {
       this.processLightspeedData(data);
       return;
     }
 
     if (data.payload) {
-      try {
-        const payload = typeof data.payload === 'string' ? JSON.parse(data.payload) : data.payload;
-        if (payload.deltas && Array.isArray(payload.deltas)) {
-          for (const delta of payload.deltas) {
-            this.processDelta(delta);
-          }
-        } else if (payload.class || payload.messageMetadata) {
-          this.handleNewMessage(payload);
-        } else if (payload.message || payload.body !== undefined) {
-          this.processLightspeedMessage(payload, {});
-        } else if (payload.data) {
-          this.processLightspeedData(payload.data);
-        }
-      } catch {
-        // ignore parse errors
-      }
+      this.processPayload(data.payload);
     }
 
     if (data.data) {
       this.processLightspeedData(data.data);
     }
+
+    if (data.threads && Array.isArray(data.threads)) {
+      for (const thread of data.threads) {
+        if (thread.messages) {
+          for (const msg of thread.messages) {
+            this.processDelta({ ...msg, threadId: thread.id || thread.threadId });
+          }
+        }
+      }
+    }
   }
 
   private convertMercuryToMessage(action: any): Message {
+    const threadID = action.thread_fbid || action.other_user_fbid || 
+                     action.thread_id || action.threadId || '';
+    const senderID = action.author?.split(':')[1] || action.author || 
+                     action.sender_id || action.senderId || '';
+    
     return {
-      messageID: action.message_id || '',
-      threadID: action.thread_fbid || action.other_user_fbid || '',
-      senderID: action.author?.split(':')[1] || action.author || '',
-      body: action.body || '',
-      timestamp: parseInt(action.timestamp) || Date.now(),
-      type: 'text',
-      attachments: action.attachments || [],
-      mentions: [],
+      messageID: action.message_id || action.messageId || action.mid || '',
+      threadID: threadID.toString(),
+      senderID: senderID.toString(),
+      body: action.body || action.snippet || action.text || '',
+      timestamp: parseInt(action.timestamp || action.timestamp_precise) || Date.now(),
+      type: this.determineMessageType(action),
+      attachments: this.parseAttachments(action.attachments || []),
+      mentions: this.parseMentions(action.mentions || []),
       isGroup: !!action.thread_fbid
     };
   }
 
   disconnect(): void {
     this.stopPingInterval();
+    this.stopSyncInterval();
     
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -1314,5 +1680,13 @@ export class MqttClient extends EventEmitter {
     };
 
     this.client.publish('/t_ms', JSON.stringify(payload), { qos: 0 });
+  }
+
+  getLastMessageTimestamp(): number {
+    return this.lastMessageTimestamp;
+  }
+
+  getProcessedMessageCount(): number {
+    return this.messageIds.size;
   }
 }
