@@ -84,6 +84,14 @@ liwanag.login({ appState: require('./appstate.json') }, {}, (err, api) => {
 
 ## Recent Changes
 
+### v0.6.6 (2025-12-12)
+- **Major MQTT Rebuild**: Complete rebuild of MQTT client for Group Chat & Private Message support
+- **MQTT Protocol Fix**: Updated to MQTT 3.1.1 (protocolVersion 4) for Facebook compatibility
+- **Binary Payload Handling**: Fixed Buffer/non-JSON payload handling to prevent crashes
+- **Message Deduplication**: Implemented Set-based deduplication with 5000 message limit
+- **New Topic Handlers**: Added Instagram messaging, region hints, disconnect notifications
+- **Enhanced Message Extraction**: Improved threadID/senderID extraction with 15+ extraction methods
+
 ### v0.6.5 (2025-12-12)
 - **Critical Lightspeed Fix**: Fixed Lightspeed messages not being emitted properly
 - **Enhanced processLightspeedMessage()**: Correctly extracts threadID from message-level properties
