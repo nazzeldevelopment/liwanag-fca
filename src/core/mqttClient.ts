@@ -491,11 +491,21 @@ export class MqttClient extends EventEmitter {
         case '/ls_resp':
           this.handleLightspeedResponse(data);
           break;
+        case '/graphql':
+          this.handleGraphQLResponse(data);
+          break;
+        case '/orca_message_notifications':
+          this.handleOrcaMessageNotifications(data);
+          break;
+        case '/ls_foreground_state':
+          this.handleForegroundState(data);
+          break;
         default:
           if (data && Object.keys(data).length > 0) {
             this.logger.debug(`Received message on ${topic}`, { 
               dataKeys: Object.keys(data) 
             });
+            this.tryExtractMessage(data, topic);
           }
       }
     } catch (error) {
@@ -508,7 +518,7 @@ export class MqttClient extends EventEmitter {
   private handleMessengerSync(data: any): void {
     if (data.errorCode) {
       this.logger.warning('Sync error', { code: data.errorCode });
-      if (data.errorCode === 'ERROR_QUEUE_NOT_FOUND') {
+      if (data.errorCode === 'ERROR_QUEUE_NOT_FOUND' || data.errorCode === 'ERROR_QUEUE_OVERFLOW') {
         this.sendSyncRequest();
       }
       return;
@@ -530,6 +540,35 @@ export class MqttClient extends EventEmitter {
       }
     }
 
+    if (data.payload) {
+      try {
+        const payload = typeof data.payload === 'string' ? JSON.parse(data.payload) : data.payload;
+        if (payload.deltas && Array.isArray(payload.deltas)) {
+          for (const delta of payload.deltas) {
+            this.processDelta(delta);
+          }
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+
+    if (data.threads && Array.isArray(data.threads)) {
+      for (const thread of data.threads) {
+        if (thread.messages && Array.isArray(thread.messages)) {
+          for (const msg of thread.messages) {
+            this.processDelta(msg);
+          }
+        }
+      }
+    }
+
+    if (data.messages && Array.isArray(data.messages)) {
+      for (const msg of data.messages) {
+        this.processDelta(msg);
+      }
+    }
+
     if (data.lastIssuedSeqId) {
       this.lastSeqId = data.lastIssuedSeqId.toString();
     }
@@ -544,6 +583,10 @@ export class MqttClient extends EventEmitter {
 
     if (data.irisSnapshotTimestampMs) {
       this.irisSnapshotTimestampMs = data.irisSnapshotTimestampMs.toString();
+    }
+
+    if (data.firstDeltaSeqId) {
+      this.lastSeqId = data.firstDeltaSeqId.toString();
     }
   }
 
@@ -600,7 +643,7 @@ export class MqttClient extends EventEmitter {
 
   private handleNewMessage(delta: any): void {
     const messageData = delta.messageMetadata || delta;
-    const body = delta.body || delta.snippet || delta.text || '';
+    const body = delta.body || delta.snippet || delta.text || delta.message?.text || '';
     
     let threadID = '';
     let isGroup = false;
@@ -613,6 +656,9 @@ export class MqttClient extends EventEmitter {
       } else if (threadKey.otherUserFbId) {
         threadID = threadKey.otherUserFbId.toString();
         isGroup = false;
+      } else if (threadKey.otherUserID) {
+        threadID = threadKey.otherUserID.toString();
+        isGroup = false;
       }
     } else if (delta.threadId) {
       threadID = delta.threadId.toString();
@@ -620,11 +666,48 @@ export class MqttClient extends EventEmitter {
     } else if (delta.threadFbId) {
       threadID = delta.threadFbId.toString();
       isGroup = true;
+    } else if (delta.thread_fbid) {
+      threadID = delta.thread_fbid.toString();
+      isGroup = true;
+    } else if (delta.other_user_fbid) {
+      threadID = delta.other_user_fbid.toString();
+      isGroup = false;
+    } else if (delta.thread?.thread_key?.thread_fbid) {
+      threadID = delta.thread.thread_key.thread_fbid.toString();
+      isGroup = true;
+    } else if (delta.thread?.thread_key?.other_user_id) {
+      threadID = delta.thread.thread_key.other_user_id.toString();
+      isGroup = false;
     }
 
-    const senderID = (messageData.actorFbId || delta.senderId || delta.senderFbId || delta.authorId || '').toString();
-    const messageID = (messageData.messageId || delta.messageId || delta.mid || delta.id || '').toString();
-    const timestamp = parseInt(messageData.timestamp || delta.timestamp || delta.offlineThreadingId) || Date.now();
+    const senderID = (
+      messageData.actorFbId || 
+      delta.senderId || 
+      delta.senderFbId || 
+      delta.authorId ||
+      delta.author?.split(':')[1] ||
+      delta.author ||
+      delta.sender_id ||
+      delta.from?.id ||
+      delta.message_sender?.id ||
+      ''
+    ).toString();
+    
+    const messageID = (
+      messageData.messageId || 
+      delta.messageId || 
+      delta.mid || 
+      delta.id ||
+      delta.message_id ||
+      ''
+    ).toString();
+    
+    const timestamp = parseInt(
+      messageData.timestamp || 
+      delta.timestamp || 
+      delta.offlineThreadingId ||
+      delta.timestamp_precise
+    ) || Date.now();
 
     if (!threadID || !messageID) {
       return;
@@ -634,8 +717,19 @@ export class MqttClient extends EventEmitter {
       return;
     }
 
-    const attachments = this.parseAttachments(delta.attachments || delta.fileAttachments || []);
-    const mentions = this.parseMentions(delta.data?.prng || delta.mentions || []);
+    const attachments = this.parseAttachments(
+      delta.attachments || 
+      delta.fileAttachments || 
+      delta.blob_attachments ||
+      delta.extensible_attachments ||
+      []
+    );
+    const mentions = this.parseMentions(
+      delta.data?.prng || 
+      delta.mentions || 
+      delta.message_tags ||
+      []
+    );
 
     const message: Message = {
       messageID,
@@ -647,11 +741,11 @@ export class MqttClient extends EventEmitter {
       attachments,
       mentions,
       isGroup,
-      isUnread: delta.isUnread ?? true,
-      replyToMessage: delta.replyToMessageId ? {
-        messageID: delta.replyToMessageId,
-        senderID: delta.replyToSenderId || '',
-        body: delta.replyToMessage || ''
+      isUnread: delta.isUnread ?? delta.unread ?? true,
+      replyToMessage: delta.replyToMessageId || delta.replied_to_message ? {
+        messageID: delta.replyToMessageId || delta.replied_to_message?.id || '',
+        senderID: delta.replyToSenderId || delta.replied_to_message?.sender_id || '',
+        body: delta.replyToMessage || delta.replied_to_message?.text || ''
       } : undefined
     };
 
@@ -903,9 +997,233 @@ export class MqttClient extends EventEmitter {
             this.processDelta(delta);
           }
         }
+        if (payload.data) {
+          this.processLightspeedData(payload.data);
+        }
       } catch {
         this.logger.debug('Failed to parse lightspeed payload');
       }
+    }
+    if (data.deltas) {
+      for (const delta of data.deltas) {
+        this.processDelta(delta);
+      }
+    }
+    if (data.data) {
+      this.processLightspeedData(data.data);
+    }
+  }
+
+  private processLightspeedData(data: any): void {
+    if (!data) return;
+    
+    if (data.viewer?.message_threads?.nodes) {
+      for (const thread of data.viewer.message_threads.nodes) {
+        if (thread.messages?.nodes) {
+          for (const msg of thread.messages.nodes) {
+            this.processLightspeedMessage(msg, thread);
+          }
+        }
+      }
+    }
+
+    if (data.message_thread?.messages?.nodes) {
+      for (const msg of data.message_thread.messages.nodes) {
+        this.processLightspeedMessage(msg, data.message_thread);
+      }
+    }
+
+    if (data.messages && Array.isArray(data.messages)) {
+      for (const msg of data.messages) {
+        if (msg.class || msg.deltaClass || msg.type || msg.messageMetadata) {
+          this.processDelta(msg);
+        } else {
+          this.processLightspeedMessage(msg, { thread_key: msg.thread_key || {} });
+        }
+      }
+    }
+
+    if (data.deltas && Array.isArray(data.deltas)) {
+      for (const delta of data.deltas) {
+        this.processDelta(delta);
+      }
+    }
+  }
+
+  private processLightspeedMessage(msg: any, thread: any): void {
+    if (!msg) return;
+    
+    let threadID = '';
+    let isGroup = false;
+    
+    if (thread?.thread_key?.thread_fbid) {
+      threadID = thread.thread_key.thread_fbid.toString();
+      isGroup = true;
+    } else if (thread?.thread_key?.other_user_id) {
+      threadID = thread.thread_key.other_user_id.toString();
+      isGroup = false;
+    } else if (thread?.id) {
+      threadID = thread.id.toString();
+      isGroup = thread.id.toString().length > 15;
+    } else if (msg.thread_id) {
+      threadID = msg.thread_id.toString();
+      isGroup = msg.thread_id.toString().length > 15;
+    } else if (msg.threadId) {
+      threadID = msg.threadId.toString();
+      isGroup = msg.threadId.toString().length > 15;
+    }
+    
+    const senderID = (
+      msg.message_sender?.id ||
+      msg.sender_id ||
+      msg.senderId ||
+      msg.senderFbId ||
+      msg.actorFbId ||
+      msg.author?.split(':')[1] ||
+      msg.author ||
+      msg.from?.id ||
+      ''
+    ).toString();
+    
+    const messageID = (
+      msg.message_id || 
+      msg.messageId ||
+      msg.id || 
+      msg.mid ||
+      ''
+    ).toString();
+    
+    const body = (
+      msg.message?.text || 
+      msg.snippet || 
+      msg.text || 
+      msg.body ||
+      ''
+    ).toString();
+    
+    const timestamp = parseInt(msg.timestamp_precise || msg.timestamp) || Date.now();
+
+    if (!threadID || !messageID) return;
+    if (!senderID && !body) return;
+    
+    if (!this.config.selfListen && senderID === this.userId) return;
+
+    const message: Message = {
+      messageID,
+      threadID,
+      senderID: senderID || 'unknown',
+      body,
+      timestamp,
+      type: this.determineMessageType(msg),
+      attachments: this.parseAttachments(msg.attachments || msg.blob_attachments || []),
+      mentions: this.parseMentions(msg.mentions || msg.message_tags || []),
+      isGroup,
+      isUnread: msg.isUnread ?? msg.unread ?? true
+    };
+
+    this.logger.info('Lightspeed mensahe natanggap', {
+      from: senderID,
+      thread: threadID,
+      isGroup
+    });
+
+    this.emit('message', message);
+  }
+
+  private handleGraphQLResponse(data: any): void {
+    if (data.data) {
+      this.processLightspeedData(data.data);
+    }
+    if (data.payload) {
+      try {
+        const payload = typeof data.payload === 'string' ? JSON.parse(data.payload) : data.payload;
+        this.processLightspeedData(payload);
+      } catch {
+        this.logger.debug('Failed to parse graphql payload');
+      }
+    }
+  }
+
+  private handleOrcaMessageNotifications(data: any): void {
+    if (data.deltas) {
+      for (const delta of data.deltas) {
+        this.processDelta(delta);
+      }
+    }
+    if (data.payload) {
+      try {
+        const payload = typeof data.payload === 'string' ? JSON.parse(data.payload) : data.payload;
+        if (payload.deltas) {
+          for (const delta of payload.deltas) {
+            this.processDelta(delta);
+          }
+        }
+      } catch {
+        this.logger.debug('Failed to parse orca message notification');
+      }
+    }
+    if (data.message || data.body !== undefined) {
+      this.handleNewMessage(data);
+    }
+  }
+
+  private handleForegroundState(data: any): void {
+    this.emit('foreground_state', data);
+  }
+
+  private tryExtractMessage(data: any, topic: string): void {
+    if (data.deltas && Array.isArray(data.deltas)) {
+      for (const delta of data.deltas) {
+        this.processDelta(delta);
+      }
+      return;
+    }
+    
+    if (data.delta) {
+      this.processDelta(data.delta);
+      return;
+    }
+
+    if (data.class || data.deltaClass || data.messageMetadata) {
+      this.handleNewMessage(data);
+      return;
+    }
+
+    if (data.message || data.body !== undefined) {
+      if (data.threadId || data.thread_id || data.threadKey || data.thread_fbid) {
+        this.handleNewMessage(data);
+      } else {
+        this.processLightspeedMessage(data, {});
+      }
+      return;
+    }
+
+    if (data.viewer?.message_threads?.nodes || data.message_thread?.messages?.nodes) {
+      this.processLightspeedData(data);
+      return;
+    }
+
+    if (data.payload) {
+      try {
+        const payload = typeof data.payload === 'string' ? JSON.parse(data.payload) : data.payload;
+        if (payload.deltas && Array.isArray(payload.deltas)) {
+          for (const delta of payload.deltas) {
+            this.processDelta(delta);
+          }
+        } else if (payload.class || payload.messageMetadata) {
+          this.handleNewMessage(payload);
+        } else if (payload.message || payload.body !== undefined) {
+          this.processLightspeedMessage(payload, {});
+        } else if (payload.data) {
+          this.processLightspeedData(payload.data);
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+
+    if (data.data) {
+      this.processLightspeedData(data.data);
     }
   }
 

@@ -5,6 +5,67 @@ Lahat ng notable changes sa project na ito ay dokumentado dito.
 Ang format ay based sa [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 at ang project na ito ay sumusunod sa [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.5] - 2025-12-12
+
+### 🔧 Fixed
+
+- **Critical Lightspeed Message Processing Fix**
+  - Fixed Lightspeed messages not being emitted properly due to wrong data flow
+  - Fixed `processLightspeedMessage()` to correctly extract threadID from message-level properties
+  - Fixed `processLightspeedData()` to properly distinguish between delta and Lightspeed formats
+  - Fixed `tryExtractMessage()` to correctly route messages to appropriate handlers
+  - Improved message parsing for messages without thread context
+
+### ✨ Added
+
+- **Enhanced Message Extraction**
+  - Added support for `thread_id` and `threadId` in Lightspeed messages
+  - Added detection for `data.viewer.message_threads.nodes` in fallback handler
+  - Better handling of messages with missing thread context using heuristic detection
+
+---
+
+## [0.6.4] - 2025-12-12
+
+### 🔧 Fixed
+
+- **Critical MQTT Message Handling Fixes for Custom Bots**
+  - Fixed bot not responding to Group Chat messages
+  - Fixed bot not responding to Private Messages
+  - Improved thread ID extraction from multiple message formats (threadKey, thread_fbid, other_user_fbid, etc.)
+  - Added handling for nested thread structures (delta.thread.thread_key)
+  - Fixed sender ID extraction from various formats (actorFbId, author, sender_id, from.id, message_sender.id)
+
+### ✨ Added
+
+- **New MQTT Topic Handlers**
+  - Added `/graphql` topic handler for GraphQL-based message events
+  - Added `/orca_message_notifications` topic handler for Orca notification messages
+  - Added `/ls_foreground_state` topic handler for foreground state changes
+  - Added `tryExtractMessage()` fallback handler for unknown topics with message data
+
+- **Lightspeed Protocol Support**
+  - Added `processLightspeedData()` for parsing Lightspeed message structures
+  - Added `processLightspeedMessage()` for extracting messages from Lightspeed format
+  - Support for `viewer.message_threads.nodes` and `message_thread.messages.nodes` structures
+  - Better handling of Lightspeed response payloads
+
+- **Enhanced Message Parsing**
+  - Added support for `blob_attachments` and `extensible_attachments`
+  - Added support for `message_tags` for mention parsing
+  - Added support for `replied_to_message` structure for quoted replies
+  - Added support for `timestamp_precise` for accurate timestamps
+  - Added support for `unread` field alongside `isUnread`
+
+### 🔧 Technical Improvements
+  - Improved `handleMessengerSync()` to process `payload`, `threads`, and `messages` arrays
+  - Added handling for `ERROR_QUEUE_OVERFLOW` sync error with auto-retry
+  - Added `firstDeltaSeqId` support for better sync state tracking
+  - Better fallback message extraction from `delta.message?.text`
+  - Improved error resilience with more comprehensive null checks
+
+---
+
 ## [0.6.3] - 2025-12-12
 
 ### 🔧 Fixed
