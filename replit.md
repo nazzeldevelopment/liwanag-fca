@@ -84,6 +84,13 @@ liwanag.login({ appState: require('./appstate.json') }, {}, (err, api) => {
 
 ## Recent Changes
 
+### v0.6.3 (2025-12-12)
+- **Critical MQTT Fix**: Fixed authentication - password now uses JSON-serialized session cookies
+- **Improved Message Handling**: Mercury and messaging_events handlers now properly emit messages
+- **Enhanced Delta Processing**: All message handlers funnel through processDelta() for consistency
+- **Full Group Chat Support**: Improved parsing for group thread IDs and member messages
+- **Private Message Support**: Enhanced handling for 1:1 conversations via MQTT
+
 ### v0.5.0 (2025-12-10)
 - Voice/Video Call Support with screen sharing
 - AI-Powered Content Moderation
