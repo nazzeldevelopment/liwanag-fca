@@ -290,12 +290,19 @@ export class Api extends EventEmitter implements LiwanagApi {
     message: SendMessageOptions,
     threadID: string
   ): Promise<{ messageID: string; timestamp: number }> {
-    const messageID = `mid.$${Date.now()}${Math.random().toString(36).substr(2, 8)}`;
-    
-    return {
-      messageID,
-      timestamp: Date.now()
-    };
+    try {
+      const result = await this.httpClient.sendMessage(message, threadID, this.userId);
+      
+      this.analyticsData.messagesSent++;
+      
+      return {
+        messageID: result.messageID,
+        timestamp: result.timestamp
+      };
+    } catch (error) {
+      this.analyticsData.errors++;
+      throw error;
+    }
   }
 
   makinigSaMensahe(callback: MessageCallback): void {

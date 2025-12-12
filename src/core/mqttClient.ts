@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import * as mqtt from 'mqtt';
-import { Message, AppState } from '../types';
+import { Message, AppState, Attachment, Mention } from '../types';
 import { Logger } from '../utils/logger';
 
 export interface MqttConfig {
@@ -9,6 +9,7 @@ export interface MqttConfig {
   selfListen?: boolean;
   listenEvents?: boolean;
   updatePresence?: boolean;
+  forceLogin?: boolean;
 }
 
 export interface MqttConnectionData {
@@ -38,32 +39,24 @@ const MQTT_TOPICS = [
   '/pp',
   '/webrtc_response',
   '/t_rtc',
-  '/ls_req',
-  '/ls_resp',
   '/ls_foreground_state',
   '/t_p',
-  '/graphql',
   '/t_region_hint',
   '/notify_disconnect_v2',
   '/t_ms_gd',
   '/t_rtc_multi',
   '/t_trace',
-  '/t_rtc_log',
-  '/ig_messaging_events',
-  '/ig_realtime_sub'
+  '/t_rtc_log'
 ];
 
-const FB_APP_ID = '219994525426954';
-const MSGR_APP_ID = '256002347743983';
-const INSTAGRAM_APP_ID = '567067343352427';
-
-const MQTT_ENDPOINTS = [
-  'wss://edge-chat.messenger.com/chat',
+const FB_MQTT_BROKER = 'wss://edge-chat.messenger.com/chat';
+const FB_MQTT_BROKER_FALLBACKS = [
   'wss://edge-chat.facebook.com/chat',
   'wss://edge-chat.messenger.com/mqtt',
   'wss://mqtt-mini.facebook.com:443/mqtt',
   'wss://z-1-edge-chat.messenger.com/chat',
-  'wss://z-p3-edge-chat.messenger.com/chat'
+  'wss://z-p3-edge-chat.messenger.com/chat',
+  'wss://z-p4-edge-chat.messenger.com/chat'
 ];
 
 const DELTA_CLASSES = [
@@ -79,7 +72,11 @@ const DELTA_CLASSES = [
   'ThreadMuteSettings',
   'ThreadAction',
   'MessageReaction',
-  'RepliedMessage'
+  'RepliedMessage',
+  'ThreadFolder',
+  'RTCEventLog',
+  'MessageUnsend',
+  'ThreadImageUpdate'
 ];
 
 export class MqttClient extends EventEmitter {
@@ -90,24 +87,25 @@ export class MqttClient extends EventEmitter {
   private config: MqttConfig;
   private isConnected: boolean = false;
   private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 100;
-  private lastSeqId: string = '';
+  private maxReconnectAttempts: number = 150;
+  private lastSeqId: string = '0';
   private syncToken: string = '';
   private sessionId: number;
   private deviceId: string;
+  private clientId: string;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private pingInterval: NodeJS.Timeout | null = null;
   private syncInterval: NodeJS.Timeout | null = null;
+  private presenceInterval: NodeJS.Timeout | null = null;
   private lastPingTime: number = 0;
   private connectionStartTime: number = 0;
   private currentEndpointIndex: number = 0;
-  private epochId: number = 0;
-  private mqttSessionId: number = 0;
-  private requestId: number = 1;
   private irisSeqId: string = '';
   private irisSnapshotTimestampMs: string = '';
   private messageIds: Set<string> = new Set();
   private lastMessageTimestamp: number = 0;
+  private fbDtsg: string = '';
+  private ttstamp: string = '';
 
   constructor(
     userId: string,
@@ -120,34 +118,28 @@ export class MqttClient extends EventEmitter {
     this.appState = appState;
     this.config = {
       region: config.region || this.detectRegion(),
-      userAgent: config.userAgent || this.getRandomUserAgent(),
+      userAgent: config.userAgent || this.getDefaultUserAgent(),
       selfListen: config.selfListen ?? false,
       listenEvents: config.listenEvents ?? true,
-      updatePresence: config.updatePresence ?? true
+      updatePresence: config.updatePresence ?? true,
+      forceLogin: config.forceLogin ?? false
     };
     this.logger = logger || new Logger({ language: 'tl' });
     this.sessionId = Math.floor(Math.random() * 0xFFFFFFFF);
     this.deviceId = this.generateDeviceId();
-    this.epochId = Date.now();
-    this.mqttSessionId = Math.floor(Math.random() * 0x7FFFFFFF);
-    
+    this.clientId = this.generateClientId();
+    this.fbDtsg = appState.fbDtsg || '';
+    this.ttstamp = this.generateTtstamp();
     this.messageIds = new Set();
   }
 
   private detectRegion(): string {
-    const regions = ['prn', 'pnb', 'ash', 'frc', 'sin', 'hkg', 'syd'];
+    const regions = ['prn', 'pnb', 'ash', 'frc', 'sin', 'hkg', 'syd', 'lla', 'nrt'];
     return regions[Math.floor(Math.random() * regions.length)];
   }
 
-  private getRandomUserAgent(): string {
-    const userAgents = [
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0'
-    ];
-    return userAgents[Math.floor(Math.random() * userAgents.length)];
+  private getDefaultUserAgent(): string {
+    return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
   }
 
   private generateDeviceId(): string {
@@ -162,86 +154,80 @@ export class MqttClient extends EventEmitter {
   private generateClientId(): string {
     const timestamp = Date.now();
     const random = Math.random().toString(36).substr(2, 8);
-    return `mqttwsclient_${this.userId}_${timestamp}_${random}`;
+    return `mqttwsclient-${this.userId.slice(-6)}-${timestamp}-${random}`;
+  }
+
+  private generateTtstamp(): string {
+    let ttstamp = '2';
+    if (this.fbDtsg) {
+      for (let i = 0; i < this.fbDtsg.length; i++) {
+        ttstamp += this.fbDtsg.charCodeAt(i).toString();
+      }
+    }
+    return ttstamp;
   }
 
   private getCookieString(): string {
+    if (!this.appState.cookies || !Array.isArray(this.appState.cookies)) {
+      return '';
+    }
     return this.appState.cookies
       .map(cookie => `${cookie.name}=${cookie.value}`)
       .join('; ');
   }
 
-  private getSessionCookies(): string {
-    const sessionCookies: Record<string, string> = {};
-    for (const cookie of this.appState.cookies) {
-      sessionCookies[cookie.name] = cookie.value;
-    }
-    return JSON.stringify(sessionCookies);
-  }
-
   private getCookieValue(name: string): string {
+    if (!this.appState.cookies || !Array.isArray(this.appState.cookies)) {
+      return '';
+    }
     const cookie = this.appState.cookies.find(c => c.name === name);
     return cookie?.value || '';
   }
 
-  private buildUsername(): string {
+  private buildMqttUsername(): string {
     const cUser = this.getCookieValue('c_user') || this.userId;
     
-    const payload = {
+    const userInfo = {
       u: cUser,
-      s: this.mqttSessionId,
-      cp: 3,
-      ecp: 10,
+      s: this.sessionId,
       chat_on: true,
       fg: true,
       d: this.deviceId,
       ct: 'websocket',
       mqtt_sid: '',
-      aid: parseInt(FB_APP_ID),
-      st: MQTT_TOPICS,
+      aid: 219994525426954,
+      st: [],
       pm: [],
+      cp: 3,
+      ecp: 10,
       dc: '',
       no_auto_fg: true,
       gas: null,
       pack: [],
-      a: this.config.userAgent,
-      aids: null
+      php_override: ''
     };
 
-    return JSON.stringify(payload);
+    return JSON.stringify(userInfo);
   }
 
-  private buildConnectPayload(): string {
-    const cid = this.getCookieValue('c_user') || this.userId;
-    
-    return JSON.stringify({
-      app_id: FB_APP_ID,
-      capabilities: 0,
-      chat_on: true,
-      fg: true,
-      no_auto_fg: true,
-      d: this.deviceId,
-      mqtt_sid: this.mqttSessionId.toString(),
-      cp: 3,
-      ecp: 10,
-      ct: 'websocket',
-      lc: 1,
-      dc: '',
-      st: MQTT_TOPICS,
-      u: cid,
-      s: this.sessionId,
-      pm: [],
-      aid: parseInt(FB_APP_ID)
-    });
+  private buildPassword(): string {
+    const cookies: Record<string, string> = {};
+    if (this.appState.cookies && Array.isArray(this.appState.cookies)) {
+      for (const cookie of this.appState.cookies) {
+        cookies[cookie.name] = cookie.value;
+      }
+    }
+    return JSON.stringify(cookies);
   }
 
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const baseEndpoint = MQTT_ENDPOINTS[this.currentEndpointIndex % MQTT_ENDPOINTS.length];
-        const endpoint = `${baseEndpoint}?region=${this.config.region}&sid=${this.mqttSessionId}`;
+        const endpoints = [FB_MQTT_BROKER, ...FB_MQTT_BROKER_FALLBACKS];
+        const baseEndpoint = endpoints[this.currentEndpointIndex % endpoints.length];
+        const endpoint = `${baseEndpoint}?region=${this.config.region}&sid=${this.sessionId}`;
         
-        this.logger.info('Kumokonekta sa MQTT server...', {
+        this.logger.info('Kumokonekta sa Messenger MQTT...', {
           endpoint: baseEndpoint.replace('wss://', '').split('/')[0],
           region: this.config.region
         });
@@ -249,23 +235,22 @@ export class MqttClient extends EventEmitter {
         this.connectionStartTime = Date.now();
 
         const options: mqtt.IClientOptions = {
-          clientId: this.generateClientId(),
-          protocolId: 'MQTT',
-          protocolVersion: 4,
+          clientId: this.clientId,
+          protocolId: 'MQIsdp',
+          protocolVersion: 3,
           clean: true,
           keepalive: 60,
           connectTimeout: 60000,
           reconnectPeriod: 0,
-          username: this.buildUsername(),
-          password: this.getSessionCookies(),
+          username: this.buildMqttUsername(),
+          password: this.buildPassword(),
           wsOptions: {
             headers: {
               'Cookie': this.getCookieString(),
               'User-Agent': this.config.userAgent,
-              'Origin': 'https://www.messenger.com',
+              'Origin': 'https://www.facebook.com',
               'Host': baseEndpoint.replace('wss://', '').split('/')[0],
               'Sec-WebSocket-Protocol': 'wss',
-              'Sec-WebSocket-Extensions': 'permessage-deflate; client_max_window_bits',
               'Accept-Language': 'en-US,en;q=0.9',
               'Cache-Control': 'no-cache',
               'Pragma': 'no-cache'
@@ -291,13 +276,13 @@ export class MqttClient extends EventEmitter {
           clearTimeout(connectTimeout);
           this.isConnected = true;
           this.reconnectAttempts = 0;
-          this.logger.success('Nakakonekta sa MQTT!');
+          this.logger.success('Nakakonekta sa Messenger MQTT!');
           
           this.subscribeToTopics();
-          this.sendPresenceRequest();
-          this.sendInitialSync();
+          this.sendConnectPayload();
           this.startPingInterval();
           this.startSyncInterval();
+          this.startPresenceInterval();
           
           this.emit('connected');
           resolve();
@@ -324,6 +309,7 @@ export class MqttClient extends EventEmitter {
           this.isConnected = false;
           this.stopPingInterval();
           this.stopSyncInterval();
+          this.stopPresenceInterval();
           
           if (wasConnected) {
             this.logger.warning('MQTT connection closed');
@@ -348,6 +334,106 @@ export class MqttClient extends EventEmitter {
         reject(error);
       }
     });
+  }
+
+  private subscribeToTopics(): void {
+    if (!this.client) return;
+
+    for (const topic of MQTT_TOPICS) {
+      this.client.subscribe(topic, { qos: 0 }, (err) => {
+        if (err) {
+          this.logger.debug(`Failed to subscribe to ${topic}`, { 
+            error: err.message 
+          });
+        }
+      });
+    }
+  }
+
+  private sendConnectPayload(): void {
+    if (!this.client) return;
+
+    const connectPayload = {
+      type: 'connect',
+      database: 1,
+      max_deltas_able_to_process: 1000,
+      sync_api_version: 10,
+      delta_batch_size: 500,
+      encoding: 'JSON',
+      device_id: this.deviceId,
+      device_params: null,
+      entity_fbid: this.userId,
+      initial_titan_sequence_id: this.lastSeqId,
+      irisSeqID: this.irisSeqId || undefined
+    };
+
+    this.client.publish(
+      '/messenger_sync_create_queue',
+      JSON.stringify(connectPayload),
+      { qos: 1 }
+    );
+
+    setTimeout(() => {
+      this.sendPresence(true);
+      this.sendInitialSync();
+    }, 500);
+  }
+
+  private sendInitialSync(): void {
+    if (!this.client) return;
+
+    const syncPayload = {
+      type: 'delta',
+      delta_batch_size: 500,
+      max_deltas_able_to_process: 1000,
+      sync_api_version: 10,
+      encoding: 'JSON',
+      entity_fbid: this.userId,
+      last_seq_id: this.lastSeqId,
+      sync_token: this.syncToken || null,
+      queue_params: {
+        buzz_on_deltas_enabled: false
+      }
+    };
+
+    this.client.publish(
+      '/messenger_sync_get_diffs',
+      JSON.stringify(syncPayload),
+      { qos: 1 }
+    );
+  }
+
+  sendPresence(isOnline: boolean): void {
+    if (!this.client || !this.isConnected) return;
+
+    const presencePayload = {
+      type: 1,
+      visibility: isOnline,
+      last_active: Date.now()
+    };
+
+    this.client.publish(
+      '/foreground_state',
+      JSON.stringify(presencePayload),
+      { qos: 0 }
+    );
+  }
+
+  sendTypingIndicator(threadID: string, isTyping: boolean = true): void {
+    if (!this.client || !this.isConnected) return;
+
+    const typingPayload = {
+      thread: threadID,
+      sender_fbid: this.userId,
+      state: isTyping ? 1 : 0,
+      typ: isTyping ? 1 : 0
+    };
+
+    this.client.publish(
+      '/typing',
+      JSON.stringify(typingPayload),
+      { qos: 0 }
+    );
   }
 
   private startPingInterval(): void {
@@ -378,7 +464,7 @@ export class MqttClient extends EventEmitter {
     
     this.syncInterval = setInterval(() => {
       if (this.client && this.isConnected) {
-        this.sendSyncRequest();
+        this.sendInitialSync();
       }
     }, 60000);
   }
@@ -387,6 +473,25 @@ export class MqttClient extends EventEmitter {
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
       this.syncInterval = null;
+    }
+  }
+
+  private startPresenceInterval(): void {
+    this.stopPresenceInterval();
+    
+    if (this.config.updatePresence) {
+      this.presenceInterval = setInterval(() => {
+        if (this.client && this.isConnected) {
+          this.sendPresence(true);
+        }
+      }, 60000);
+    }
+  }
+
+  private stopPresenceInterval(): void {
+    if (this.presenceInterval) {
+      clearInterval(this.presenceInterval);
+      this.presenceInterval = null;
     }
   }
 
@@ -427,7 +532,7 @@ export class MqttClient extends EventEmitter {
       }
       
       this.sessionId = Math.floor(Math.random() * 0xFFFFFFFF);
-      this.mqttSessionId = Math.floor(Math.random() * 0x7FFFFFFF);
+      this.clientId = this.generateClientId();
       this.deviceId = this.generateDeviceId();
       
       await this.connect();
@@ -437,102 +542,6 @@ export class MqttClient extends EventEmitter {
       });
       this.scheduleReconnect();
     }
-  }
-
-  private subscribeToTopics(): void {
-    if (!this.client) return;
-
-    for (const topic of MQTT_TOPICS) {
-      this.client.subscribe(topic, { qos: 0 }, (err) => {
-        if (err) {
-          this.logger.debug(`Failed to subscribe to ${topic}`, { 
-            error: err.message 
-          });
-        }
-      });
-    }
-  }
-
-  private sendPresenceRequest(): void {
-    if (!this.client) return;
-
-    const presencePayload = {
-      make_user_available_when_in_foreground: true
-    };
-
-    this.client.publish(
-      '/foreground_state',
-      JSON.stringify(presencePayload),
-      { qos: 0 }
-    );
-  }
-
-  private sendInitialSync(): void {
-    if (!this.client) return;
-
-    const createQueuePayload = {
-      sync_api_version: 10,
-      max_deltas_able_to_process: 1000,
-      delta_batch_size: 500,
-      encoding: 'JSON',
-      entity_fbid: this.userId,
-      initial_titan_sequence_id: '0',
-      device_params: null
-    };
-
-    this.client.publish(
-      '/messenger_sync_create_queue',
-      JSON.stringify(createQueuePayload),
-      { qos: 1 }
-    );
-
-    setTimeout(() => {
-      this.sendSyncRequest();
-    }, 500);
-  }
-
-  private sendSyncRequest(): void {
-    if (!this.client) return;
-
-    const syncPayload = {
-      sync_api_version: 10,
-      max_deltas_able_to_process: 1000,
-      delta_batch_size: 500,
-      encoding: 'JSON',
-      entity_fbid: this.userId,
-      last_seq_id: this.lastSeqId || '0',
-      sync_token: this.syncToken || null,
-      queue_type: 'messages',
-      queue_params: {
-        limit: 50,
-        tags: ['inbox', 'other', 'pending', 'archived']
-      }
-    };
-
-    this.client.publish(
-      '/messenger_sync_get_diffs',
-      JSON.stringify(syncPayload),
-      { qos: 1 }
-    );
-
-    const graphQLPayload = {
-      request_id: ++this.requestId,
-      type: 1,
-      payload: JSON.stringify({
-        sync_groups: [
-          'INBOX',
-          'MESSAGE_REQUESTS', 
-          'ARCHIVED',
-          'OTHER'
-        ],
-        database: 2,
-        version: 1,
-        last_applied_cursor: null
-      }),
-      app_id: FB_APP_ID
-    };
-
-    this.client.publish('/ls_req', JSON.stringify(graphQLPayload), { qos: 0 });
   }
 
   private handleMessage(topic: string, payload: Buffer): void {
@@ -561,8 +570,6 @@ export class MqttClient extends EventEmitter {
 
       switch (topic) {
         case '/t_ms':
-          this.handleMessengerSync(data);
-          break;
         case '/t_ms_gd':
           this.handleMessengerSync(data);
           break;
@@ -571,6 +578,7 @@ export class MqttClient extends EventEmitter {
           this.handleTypingEvent(data);
           break;
         case '/orca_presence':
+        case '/t_p':
           this.handlePresenceEvent(data);
           break;
         case '/legacy_web':
@@ -585,30 +593,15 @@ export class MqttClient extends EventEmitter {
         case '/messaging_events':
           this.handleMessagingEvents(data);
           break;
-        case '/ig_messaging_events':
-          this.handleInstagramMessaging(data);
-          break;
-        case '/t_p':
-          this.handlePresenceTopic(data);
-          break;
-        case '/ls_resp':
-          this.handleLightspeedResponse(data);
-          break;
-        case '/graphql':
-          this.handleGraphQLResponse(data);
-          break;
         case '/orca_message_notifications':
-          this.handleOrcaMessageNotifications(data);
-          break;
-        case '/ls_foreground_state':
-          this.handleForegroundState(data);
-          break;
-        case '/t_region_hint':
-          this.handleRegionHint(data);
+          this.handleOrcaNotifications(data);
           break;
         case '/notify_disconnect':
         case '/notify_disconnect_v2':
           this.handleDisconnectNotify(data);
+          break;
+        case '/t_region_hint':
+          this.handleRegionHint(data);
           break;
         default:
           if (data && Object.keys(data).length > 0) {
@@ -628,7 +621,7 @@ export class MqttClient extends EventEmitter {
       if (data.errorCode === 'ERROR_QUEUE_NOT_FOUND' || 
           data.errorCode === 'ERROR_QUEUE_OVERFLOW' ||
           data.errorCode === 'ERROR_QUEUE_UNDERFLOW') {
-        setTimeout(() => this.sendInitialSync(), 1000);
+        setTimeout(() => this.sendConnectPayload(), 1000);
       }
       return;
     }
@@ -649,38 +642,42 @@ export class MqttClient extends EventEmitter {
       }
     }
 
-    if (data.payload) {
-      this.processPayload(data.payload);
-    }
-
     if (data.threads && Array.isArray(data.threads)) {
       for (const thread of data.threads) {
-        if (thread.messages && Array.isArray(thread.messages)) {
-          for (const msg of thread.messages) {
-            const processedMsg = { ...msg };
-            if (!processedMsg.threadId && !processedMsg.threadKey) {
-              processedMsg.threadId = thread.threadId || thread.thread_id || thread.id;
-              processedMsg.threadKey = thread.threadKey || thread.thread_key;
-            }
-            this.processDelta(processedMsg);
-          }
-        }
-        if (thread.lastMessage) {
-          const lastMsg = { ...thread.lastMessage };
-          if (!lastMsg.threadId && !lastMsg.threadKey) {
-            lastMsg.threadId = thread.threadId || thread.thread_id || thread.id;
-          }
-          this.processDelta(lastMsg);
-        }
+        this.processThread(thread);
       }
     }
 
     if (data.messages && Array.isArray(data.messages)) {
       for (const msg of data.messages) {
-        this.processDelta(msg);
+        this.processMessageData(msg);
       }
     }
 
+    this.updateSyncState(data);
+  }
+
+  private processThread(thread: any): void {
+    if (thread.messages && Array.isArray(thread.messages)) {
+      for (const msg of thread.messages) {
+        const processedMsg = { ...msg };
+        if (!processedMsg.threadId && !processedMsg.threadKey) {
+          processedMsg.threadId = thread.threadId || thread.thread_id || thread.id;
+          processedMsg.threadKey = thread.threadKey || thread.thread_key;
+        }
+        this.processMessageData(processedMsg);
+      }
+    }
+    if (thread.lastMessage) {
+      const lastMsg = { ...thread.lastMessage };
+      if (!lastMsg.threadId && !lastMsg.threadKey) {
+        lastMsg.threadId = thread.threadId || thread.thread_id || thread.id;
+      }
+      this.processMessageData(lastMsg);
+    }
+  }
+
+  private updateSyncState(data: any): void {
     if (data.lastIssuedSeqId) {
       this.lastSeqId = data.lastIssuedSeqId.toString();
     }
@@ -695,56 +692,6 @@ export class MqttClient extends EventEmitter {
     }
     if (data.firstDeltaSeqId) {
       this.lastSeqId = data.firstDeltaSeqId.toString();
-    }
-  }
-
-  private processPayload(payload: any): void {
-    try {
-      let parsed: any;
-      
-      if (Buffer.isBuffer(payload)) {
-        const payloadStr = payload.toString('utf8');
-        if (!payloadStr || payloadStr.trim().length === 0) {
-          return;
-        }
-        try {
-          parsed = JSON.parse(payloadStr);
-        } catch {
-          return;
-        }
-      } else if (typeof payload === 'string') {
-        if (!payload || payload.trim().length === 0) {
-          return;
-        }
-        try {
-          parsed = JSON.parse(payload);
-        } catch {
-          return;
-        }
-      } else if (typeof payload === 'object' && payload !== null) {
-        parsed = payload;
-      } else {
-        return;
-      }
-      
-      if (parsed.deltas && Array.isArray(parsed.deltas)) {
-        for (const delta of parsed.deltas) {
-          this.processDelta(delta);
-        }
-      }
-      if (parsed.data) {
-        this.processLightspeedData(parsed.data);
-      }
-      if (parsed.threads && Array.isArray(parsed.threads)) {
-        for (const thread of parsed.threads) {
-          if (thread.messages && Array.isArray(thread.messages)) {
-            for (const msg of thread.messages) {
-              this.processLightspeedMessage(msg, thread);
-            }
-          }
-        }
-      }
-    } catch {
     }
   }
 
@@ -765,7 +712,7 @@ export class MqttClient extends EventEmitter {
         break;
       case 'ForcedFetch':
         this.emit('forced_fetch', delta);
-        this.sendSyncRequest();
+        this.sendInitialSync();
         break;
       case 'DeliveryReceipt':
         this.emit('delivery_receipt', delta);
@@ -794,391 +741,342 @@ export class MqttClient extends EventEmitter {
       case 'RepliedMessage':
         this.handleNewMessage(delta);
         break;
-      case 'NoOp':
+      case 'MessageUnsend':
+        this.emit('message_unsend', delta);
         break;
       default:
-        if (delta.messageMetadata || delta.body !== undefined || delta.message || delta.snippet) {
+        if (delta.messageMetadata || delta.body || delta.message || delta.text) {
           this.handleNewMessage(delta);
-        } else if (delta.irisSeqId || delta.deltas) {
-        } else {
-          this.emit('delta', delta);
         }
     }
   }
 
   private handleNewMessage(delta: any): void {
-    const messageData = delta.messageMetadata || delta;
-    const body = delta.body || delta.snippet || delta.text || 
-                 delta.message?.text || delta.message?.body || 
-                 delta.content || '';
-    
-    let threadID = '';
-    let isGroup = false;
-    
-    if (messageData.threadKey) {
-      const threadKey = messageData.threadKey;
-      if (threadKey.threadFbId) {
-        threadID = threadKey.threadFbId.toString();
-        isGroup = true;
-      } else if (threadKey.otherUserFbId) {
-        threadID = threadKey.otherUserFbId.toString();
-        isGroup = false;
-      } else if (threadKey.otherUserID) {
-        threadID = threadKey.otherUserID.toString();
-        isGroup = false;
-      } else if (threadKey.other_user_id) {
-        threadID = threadKey.other_user_id.toString();
-        isGroup = false;
-      } else if (threadKey.thread_fbid) {
-        threadID = threadKey.thread_fbid.toString();
-        isGroup = true;
-      }
-    }
-    
-    if (!threadID) {
-      threadID = this.extractThreadId(delta, messageData);
-      isGroup = threadID.length > 15;
-    }
-
-    const senderID = this.extractSenderId(delta, messageData);
-    
-    const messageID = this.extractMessageId(delta, messageData);
-    
-    const timestamp = this.extractTimestamp(delta, messageData);
-
-    if (!threadID || !messageID) {
-      return;
-    }
-
-    if (this.messageIds.has(messageID)) {
-      return;
-    }
-    
-    this.messageIds.add(messageID);
-    if (this.messageIds.size > 5000) {
-      const idsArray = Array.from(this.messageIds);
-      this.messageIds = new Set(idsArray.slice(-2500));
-    }
-
-    if (!this.config.selfListen && senderID === this.userId) {
-      return;
-    }
-
-    const attachments = this.parseAttachments(
-      delta.attachments || 
-      delta.fileAttachments || 
-      delta.blob_attachments ||
-      delta.extensible_attachments ||
-      delta.message?.attachments ||
-      []
-    );
-    const mentions = this.parseMentions(
-      delta.data?.prng || 
-      delta.mentions || 
-      delta.message_tags ||
-      delta.message?.mentions ||
-      []
-    );
-
-    const message: Message = {
-      messageID,
-      threadID,
-      senderID: senderID || 'unknown',
-      body: body.toString(),
-      timestamp,
-      type: this.determineMessageType(delta),
-      attachments,
-      mentions,
-      isGroup,
-      isUnread: delta.isUnread ?? delta.unread ?? true,
-      replyToMessage: this.extractReplyInfo(delta)
-    };
-
-    this.lastMessageTimestamp = timestamp;
-
-    this.logger.info('Natanggap na mensahe', {
-      from: senderID,
-      thread: threadID,
-      type: message.type,
-      isGroup
-    });
-
-    this.emit('message', message);
-  }
-
-  private extractThreadId(delta: any, messageData: any): string {
-    return (
-      delta.threadId ||
-      delta.thread_id ||
-      delta.threadFbId ||
-      delta.thread_fbid ||
-      delta.other_user_fbid ||
-      delta.otherUserFbId ||
-      messageData.threadId ||
-      messageData.thread_id ||
-      delta.thread?.thread_key?.thread_fbid ||
-      delta.thread?.thread_key?.other_user_id ||
-      delta.thread?.id ||
-      delta.message_thread?.id ||
-      delta.conversation_id ||
-      ''
-    ).toString();
-  }
-
-  private extractSenderId(delta: any, messageData: any): string {
-    return (
-      messageData.actorFbId || 
-      messageData.actor_fbid ||
-      delta.senderId || 
-      delta.sender_id ||
-      delta.senderFbId || 
-      delta.authorId ||
-      delta.author?.split(':')[1] ||
-      delta.author ||
-      delta.from?.id ||
-      delta.message_sender?.id ||
-      delta.message?.sender_id ||
-      delta.userId ||
-      delta.user_id ||
-      ''
-    ).toString();
-  }
-
-  private extractMessageId(delta: any, messageData: any): string {
-    return (
-      messageData.messageId || 
-      messageData.message_id ||
-      delta.messageId || 
-      delta.message_id ||
-      delta.mid || 
-      delta.id ||
-      delta.message?.id ||
-      delta.message?.mid ||
-      ''
-    ).toString();
-  }
-
-  private extractTimestamp(delta: any, messageData: any): number {
-    return parseInt(
-      messageData.timestamp || 
-      delta.timestamp || 
-      delta.timestamp_precise ||
-      delta.offlineThreadingId ||
-      delta.message?.timestamp ||
-      delta.createdTime ||
-      delta.created_time
-    ) || Date.now();
-  }
-
-  private extractReplyInfo(delta: any): Message['replyToMessage'] {
-    if (delta.replyToMessageId || delta.replied_to_message || delta.reply_to_message) {
-      const repliedTo = delta.replied_to_message || delta.reply_to_message || {};
-      return {
-        messageID: delta.replyToMessageId || repliedTo.id || repliedTo.message_id || '',
-        senderID: delta.replyToSenderId || repliedTo.sender_id || repliedTo.author || '',
-        body: delta.replyToMessage || repliedTo.text || repliedTo.body || repliedTo.snippet || ''
-      };
-    }
-    return undefined;
-  }
-
-  private parseAttachments(attachments: any[]): any[] {
-    if (!Array.isArray(attachments)) return [];
-    
-    return attachments.map((att: any) => ({
-      type: att.mimeType?.split('/')[0] || att.type || att.__typename || 'file',
-      url: att.playableUrl || att.url || att.previewUrl || 
-           att.largePreviewUrl || att.preview?.uri || att.large_preview?.uri || '',
-      id: att.id || att.attachmentId || att.legacy_attachment_id || '',
-      filename: att.filename || att.name || att.title || '',
-      size: att.fileSize || att.size || 0,
-      width: att.width || att.original_dimensions?.x,
-      height: att.height || att.original_dimensions?.y,
-      duration: att.playableDurationInMs || att.duration || att.video_duration
-    }));
-  }
-
-  private parseMentions(mentions: any[]): any[] {
-    if (!Array.isArray(mentions)) return [];
-    
-    return mentions.map((m: any) => ({
-      id: m.i || m.id || m.userId || m.user_id,
-      offset: m.o || m.offset || 0,
-      length: m.l || m.length || 0,
-      name: m.name || m.text || ''
-    }));
-  }
-
-  private determineMessageType(delta: any): 'text' | 'sticker' | 'photo' | 'video' | 'audio' | 'file' | 'gif' | 'location' | 'share' {
-    if (delta.stickerId || delta.stickerID || delta.sticker) return 'sticker';
-    if (delta.shareInfo || delta.story || delta.share) return 'share';
-    if (delta.coordinates || delta.location || delta.extensibleAttachment?.story_attachment?.target?.location) return 'location';
-    
-    const attachments = delta.attachments || delta.fileAttachments || 
-                       delta.blob_attachments || delta.message?.attachments || [];
-    
-    if (attachments.length > 0) {
-      const att = attachments[0];
-      const mime = att?.mimeType || att?.contentType || att?.mime_type || '';
-      const type = att?.type || att?.__typename || '';
+    try {
+      const messageId = this.extractMessageId(delta);
       
-      if (mime.startsWith('image/gif') || type === 'gif' || type.includes('Animated')) return 'gif';
-      if (mime.startsWith('image/') || type === 'photo' || type === 'image' || type.includes('Photo')) return 'photo';
-      if (mime.startsWith('video/') || type === 'video' || type.includes('Video')) return 'video';
-      if (mime.startsWith('audio/') || type === 'audio' || type === 'voice' || type.includes('Audio')) return 'audio';
-      return 'file';
-    }
-    return 'text';
-  }
+      if (messageId && this.messageIds.has(messageId)) {
+        return;
+      }
+      
+      if (messageId) {
+        this.messageIds.add(messageId);
+        if (this.messageIds.size > 5000) {
+          const iterator = this.messageIds.values();
+          for (let i = 0; i < 1000; i++) {
+            const first = iterator.next().value;
+            if (first) this.messageIds.delete(first);
+          }
+        }
+      }
 
-  private handleAdminMessage(delta: any): void {
-    const type = delta.type || delta.adminType || delta.untypedData?.type;
-    
-    switch (type) {
-      case 'change_thread_nickname':
-        this.emit('nickname_change', delta);
-        break;
-      case 'change_thread_theme':
-        this.emit('theme_change', delta);
-        break;
-      case 'change_thread_icon':
-      case 'change_thread_emoji':
-        this.emit('icon_change', delta);
-        break;
-      case 'change_thread_admins':
-        this.emit('admin_change', delta);
-        break;
-      case 'group_poll':
-        this.emit('poll', delta);
-        break;
-      default:
-        this.emit('admin_message', delta);
-    }
-  }
+      const threadId = this.extractThreadId(delta);
+      const senderId = this.extractSenderId(delta);
+      const timestamp = this.extractTimestamp(delta);
+      const body = this.extractBody(delta);
+      const attachments = this.extractAttachments(delta);
+      const mentions = this.extractMentions(delta);
+      const replyInfo = this.extractReplyInfo(delta);
+      const isGroup = threadId ? threadId.length > 15 : false;
 
-  private handleThreadNameChange(delta: any): void {
-    const threadKey = delta.messageMetadata?.threadKey || delta.threadKey || {};
-    const threadID = threadKey.threadFbId || threadKey.thread_fbid || 
-                     threadKey.otherUserFbId || delta.threadId || '';
-    const name = delta.name || delta.threadName || delta.newTitle || '';
-    const actorID = delta.messageMetadata?.actorFbId || delta.actorFbId || delta.actor_fbid || '';
+      if (!this.config.selfListen && senderId === this.userId) {
+        return;
+      }
 
-    this.emit('thread_name', {
-      threadID: threadID.toString(),
-      name,
-      actorID: actorID.toString(),
-      timestamp: Date.now()
-    });
-  }
+      if (!threadId || !senderId) {
+        return;
+      }
 
-  private handleParticipantAdded(delta: any): void {
-    const threadKey = delta.messageMetadata?.threadKey || delta.threadKey || {};
-    const threadID = (threadKey.threadFbId || threadKey.thread_fbid || delta.threadId || '').toString();
-    const addedParticipants = delta.addedParticipants || delta.participantsAdded || delta.added_participants || [];
-    const actorID = (delta.messageMetadata?.actorFbId || delta.actorFbId || delta.actor_fbid || '').toString();
+      const message: Message = {
+        messageID: messageId || `msg_${Date.now()}`,
+        threadID: threadId,
+        senderID: senderId,
+        body: body,
+        timestamp: timestamp,
+        type: this.determineMessageType(delta, attachments),
+        attachments: attachments,
+        mentions: mentions,
+        isGroup: isGroup,
+        isUnread: delta.isUnread ?? delta.unread ?? true,
+        replyToMessage: replyInfo
+      };
 
-    const userIDs = addedParticipants.map((p: any) => 
-      (p.userFbId || p.user_fbid || p.id || p.participantId || p.participant_id || '').toString()
-    );
-
-    this.emit('participant_added', {
-      threadID,
-      userIDs,
-      actorID,
-      timestamp: Date.now()
-    });
-  }
-
-  private handleParticipantLeft(delta: any): void {
-    const threadKey = delta.messageMetadata?.threadKey || delta.threadKey || {};
-    const threadID = (threadKey.threadFbId || threadKey.thread_fbid || delta.threadId || '').toString();
-    const leftParticipantFbId = delta.leftParticipantFbId || delta.left_participant_fbid || 
-                                 delta.participantFbId || delta.participant_fbid || '';
-    const actorID = (delta.messageMetadata?.actorFbId || delta.actorFbId || delta.actor_fbid || '').toString();
-
-    this.emit('participant_left', {
-      threadID,
-      userID: leftParticipantFbId.toString(),
-      actorID,
-      timestamp: Date.now()
-    });
-  }
-
-  private handleThreadAction(delta: any): void {
-    this.emit('thread_action', delta);
-  }
-
-  private handleMessageReaction(delta: any): void {
-    const threadKey = delta.threadKey || delta.messageMetadata?.threadKey || {};
-    const threadID = (threadKey.threadFbId || threadKey.otherUserFbId || delta.threadId || '').toString();
-    const messageID = delta.messageId || delta.message_id || '';
-    const reaction = delta.reaction || delta.emoji || '';
-    const actorID = (delta.actorFbId || delta.senderId || '').toString();
-
-    this.emit('message_reaction', {
-      threadID,
-      messageID: messageID.toString(),
-      reaction,
-      senderID: actorID,
-      timestamp: Date.now()
-    });
-  }
-
-  private handleTypingEvent(data: any): void {
-    const senderID = (data.sender_fbid || data.from || data.senderId || 
-                      data.userId || data.user_id || data.sender).toString();
-    const threadID = (data.thread || data.thread_fbid || data.threadId || 
-                      data.thread_id || data.to).toString();
-    const isTyping = data.state === 1 || data.isTyping === true || data.typing === true;
-
-    if (senderID && threadID) {
-      this.emit('typing', {
-        senderID,
-        threadID,
-        isTyping
+      this.lastMessageTimestamp = timestamp;
+      
+      this.logger.debug('Natanggap ang mensahe', {
+        threadID: threadId.slice(-6),
+        senderID: senderId.slice(-6),
+        isGroup
+      });
+      
+      this.emit('message', message);
+    } catch (error) {
+      this.logger.debug('Error processing new message', { 
+        error: (error as Error).message 
       });
     }
   }
 
-  private handlePresenceEvent(data: any): void {
-    if (data.list && Array.isArray(data.list)) {
-      for (const presence of data.list) {
-        const userID = (presence.u || presence.userId || presence.user_id || '').toString();
-        if (userID) {
-          this.emit('presence', {
-            userID,
-            isActive: presence.p !== 0,
-            lastActive: presence.lat || presence.lastActiveTime || presence.last_active,
-            status: presence.p === 2 ? 'active' : presence.p === 0 ? 'offline' : 'idle'
-          });
+  private extractMessageId(delta: any): string {
+    return delta.messageMetadata?.messageId ||
+           delta.messageId ||
+           delta.mid ||
+           delta.message_id ||
+           delta.id ||
+           delta.messageID ||
+           delta.message?.message_id ||
+           delta.message?.id ||
+           '';
+  }
+
+  private extractThreadId(delta: any): string {
+    if (delta.messageMetadata?.threadKey?.threadFbId) {
+      return delta.messageMetadata.threadKey.threadFbId.toString();
+    }
+    if (delta.messageMetadata?.threadKey?.otherUserFbId) {
+      return delta.messageMetadata.threadKey.otherUserFbId.toString();
+    }
+    if (delta.threadKey?.threadFbId) {
+      return delta.threadKey.threadFbId.toString();
+    }
+    if (delta.threadKey?.otherUserFbId) {
+      return delta.threadKey.otherUserFbId.toString();
+    }
+    if (delta.thread?.thread_key?.thread_fbid) {
+      return delta.thread.thread_key.thread_fbid.toString();
+    }
+    if (delta.thread?.thread_key?.other_user_id) {
+      return delta.thread.thread_key.other_user_id.toString();
+    }
+    
+    const fields = [
+      'threadId', 'thread_id', 'threadID', 'thread_fbid',
+      'conversation_id', 'tid', 'thread'
+    ];
+    
+    for (const field of fields) {
+      if (delta[field]) {
+        const value = delta[field];
+        if (typeof value === 'object') {
+          return value.thread_fbid?.toString() || 
+                 value.threadFbId?.toString() || 
+                 value.other_user_id?.toString() ||
+                 value.otherUserFbId?.toString() ||
+                 '';
+        }
+        return value.toString();
+      }
+    }
+    
+    return '';
+  }
+
+  private extractSenderId(delta: any): string {
+    if (delta.messageMetadata?.actorFbId) {
+      return delta.messageMetadata.actorFbId.toString();
+    }
+    
+    const fields = [
+      'actorFbId', 'senderId', 'sender_id', 'senderID',
+      'author', 'from', 'user_id', 'userId', 'author_id',
+      'message_sender'
+    ];
+    
+    for (const field of fields) {
+      if (delta[field]) {
+        const value = delta[field];
+        if (typeof value === 'object') {
+          return value.id?.toString() || 
+                 value.fbid?.toString() ||
+                 '';
+        }
+        const strValue = value.toString();
+        if (strValue.includes(':')) {
+          return strValue.split(':')[1] || strValue;
+        }
+        return strValue;
+      }
+    }
+    
+    return '';
+  }
+
+  private extractTimestamp(delta: any): number {
+    const fields = [
+      'messageMetadata.timestamp',
+      'timestamp',
+      'timestamp_ms',
+      'timestampMs',
+      'timestamp_precise',
+      'sentTimestamp',
+      'time'
+    ];
+    
+    for (const field of fields) {
+      const parts = field.split('.');
+      let value: any = delta;
+      for (const part of parts) {
+        value = value?.[part];
+      }
+      if (value) {
+        const numValue = parseInt(value.toString(), 10);
+        if (!isNaN(numValue)) {
+          return numValue;
         }
       }
     }
+    
+    return Date.now();
   }
 
-  private handlePresenceTopic(data: any): void {
-    if (data.list_type === 'full' && data.list) {
-      for (const item of data.list) {
+  private extractBody(delta: any): string {
+    return delta.body ||
+           delta.text ||
+           delta.messageMetadata?.body ||
+           delta.message?.text ||
+           delta.message?.body ||
+           delta.snippet ||
+           '';
+  }
+
+  private extractAttachments(delta: any): Attachment[] {
+    const attachments: Attachment[] = [];
+    
+    const rawAttachments = delta.attachments || 
+                          delta.messageMetadata?.attachments ||
+                          delta.blob_attachments ||
+                          delta.extensible_attachments ||
+                          [];
+    
+    for (const att of rawAttachments) {
+      const attachment: Attachment = {
+        type: this.getAttachmentType(att),
+        url: att.url || att.preview_url || att.playable_url || att.image?.uri,
+        id: att.id || att.attachment_id,
+        filename: att.filename || att.name,
+        size: att.fileSize || att.file_size
+      };
+      attachments.push(attachment);
+    }
+    
+    return attachments;
+  }
+
+  private getAttachmentType(att: any): string {
+    if (att.type) return att.type;
+    if (att.attach_type) return att.attach_type;
+    if (att.__typename) {
+      const typename = att.__typename.toLowerCase();
+      if (typename.includes('image') || typename.includes('photo')) return 'photo';
+      if (typename.includes('video')) return 'video';
+      if (typename.includes('audio')) return 'audio';
+      if (typename.includes('file')) return 'file';
+      if (typename.includes('sticker')) return 'sticker';
+      if (typename.includes('gif')) return 'gif';
+    }
+    return 'file';
+  }
+
+  private extractMentions(delta: any): Mention[] {
+    const mentions: Mention[] = [];
+    
+    const rawMentions = delta.mentions || 
+                       delta.messageMetadata?.mentions ||
+                       delta.message_tags ||
+                       [];
+    
+    for (const m of rawMentions) {
+      mentions.push({
+        id: m.id || m.user_id || m.i,
+        offset: m.offset || m.o || 0,
+        length: m.length || m.l || 0,
+        name: m.name || m.n || ''
+      });
+    }
+    
+    return mentions;
+  }
+
+  private extractReplyInfo(delta: any): Message['replyToMessage'] | undefined {
+    const reply = delta.repliedToMessage || 
+                 delta.replied_to_message ||
+                 delta.replyToMessage ||
+                 delta.quotedMessage;
+    
+    if (!reply) return undefined;
+    
+    return {
+      messageID: reply.message_id || reply.messageId || reply.mid || reply.id || '',
+      senderID: reply.sender_id || reply.senderId || reply.author || '',
+      body: reply.body || reply.text || reply.snippet || ''
+    };
+  }
+
+  private determineMessageType(delta: any, attachments: Attachment[]): Message['type'] {
+    if (delta.stickerId || delta.sticker_id) return 'sticker';
+    if (attachments.length > 0) {
+      const firstType = attachments[0].type;
+      if (firstType === 'photo' || firstType === 'image') return 'photo';
+      if (firstType === 'video') return 'video';
+      if (firstType === 'audio') return 'audio';
+      if (firstType === 'sticker') return 'sticker';
+      if (firstType === 'gif') return 'gif';
+      if (firstType === 'file') return 'file';
+    }
+    if (delta.coordinates || delta.location) return 'location';
+    if (delta.share || delta.url) return 'share';
+    return 'text';
+  }
+
+  private processMessageData(msg: any): void {
+    this.handleNewMessage(msg);
+  }
+
+  private handleAdminMessage(delta: any): void {
+    const threadId = this.extractThreadId(delta);
+    const adminType = delta.adminTextType || delta.type || 'unknown';
+    
+    this.emit('admin_message', {
+      threadID: threadId,
+      type: adminType,
+      data: delta
+    });
+  }
+
+  private handleTypingEvent(data: any): void {
+    const threadId = data.thread || data.threadId || data.thread_id;
+    const senderId = data.sender_fbid || data.from || data.senderId;
+    const isTyping = data.st === 1 || data.state === 1 || data.typing === true;
+    
+    this.emit('typing', {
+      threadID: threadId,
+      senderID: senderId,
+      isTyping
+    });
+  }
+
+  private handlePresenceEvent(data: any): void {
+    if (data.list || data.list_type === 'inc') {
+      const presenceList = data.list || [];
+      for (const presence of presenceList) {
+        const userId = presence.u || presence.id;
+        const status = presence.p || presence.status;
+        const lastActive = presence.lat || presence.last_active;
+        
         this.emit('presence', {
-          userID: (item.u || '').toString(),
-          isActive: item.p === 2,
-          lastActive: item.l || item.lat
+          userID: userId,
+          status: status === 2 || status === 'active' ? 'online' : 'offline',
+          lastActive
         });
       }
     }
   }
 
   private handleLegacyEvent(data: any): void {
-    if (data.delta) {
-      this.processDelta(data.delta);
-    } else if (data.deltas) {
-      for (const delta of data.deltas) {
-        this.processDelta(delta);
+    if (data.ms && Array.isArray(data.ms)) {
+      for (const msg of data.ms) {
+        this.processDelta(msg);
       }
-    } else if (data.type === 'messaging') {
-      this.handleMessagingEvents(data);
-    } else {
-      this.emit('legacy_event', data);
     }
   }
 
@@ -1188,334 +1086,101 @@ export class MqttClient extends EventEmitter {
         this.processDelta(delta);
       }
     }
-    if (data.threads) {
-      for (const thread of data.threads) {
-        if (thread.messages) {
-          for (const msg of thread.messages) {
-            this.processDelta({ ...msg, threadId: thread.threadId || thread.id });
-          }
-        }
-      }
-    }
-    this.emit('inbox', data);
   }
 
   private handleMercuryEvent(data: any): void {
-    if (data.deltas) {
-      for (const delta of data.deltas) {
-        this.processDelta(delta);
-      }
-    }
-    if (data.actions) {
+    if (data.actions && Array.isArray(data.actions)) {
       for (const action of data.actions) {
-        const actionType = action.action_type || action.type || '';
-        if (actionType === 'log:subscribe' || 
-            actionType === 'ma-type:user-generated-message' ||
-            action.body !== undefined ||
-            action.message_id) {
-          const message = this.convertMercuryToMessage(action);
-          if (message.threadID && message.messageID) {
-            if (!this.messageIds.has(message.messageID)) {
-              this.messageIds.add(message.messageID);
-              this.emit('message', message);
-            }
-          }
-        }
-      }
-    }
-    if (data.payload?.actions) {
-      for (const action of data.payload.actions) {
-        const message = this.convertMercuryToMessage(action);
-        if (message.threadID && message.messageID) {
-          if (!this.messageIds.has(message.messageID)) {
-            this.messageIds.add(message.messageID);
-            this.emit('message', message);
-          }
-        }
+        this.processMessageData(action);
       }
     }
   }
 
   private handleMessagingEvents(data: any): void {
-    if (data.deltas) {
-      for (const delta of data.deltas) {
-        this.processDelta(delta);
-      }
-    }
-    if (data.messages) {
-      for (const msg of data.messages) {
-        this.processDelta(msg);
-      }
-    }
-    if (data.event) {
-      this.emit('messaging_event', data.event);
-    }
-    if (data.threads) {
-      for (const thread of data.threads) {
-        if (thread.messages) {
-          for (const msg of thread.messages) {
-            this.processDelta({ ...msg, threadId: thread.id || thread.threadId });
-          }
-        }
-      }
-    }
-  }
-
-  private handleInstagramMessaging(data: any): void {
-    if (data.deltas) {
-      for (const delta of data.deltas) {
-        this.processDelta(delta);
-      }
-    }
-    if (data.data) {
-      this.processLightspeedData(data.data);
-    }
-  }
-
-  private handleLightspeedResponse(data: any): void {
-    if (data.payload) {
-      this.processPayload(data.payload);
-    }
-    if (data.deltas) {
-      for (const delta of data.deltas) {
-        this.processDelta(delta);
-      }
-    }
-    if (data.data) {
-      this.processLightspeedData(data.data);
-    }
-    if (data.request_id && data.payload) {
-      try {
-        const payload = typeof data.payload === 'string' ? JSON.parse(data.payload) : data.payload;
-        if (payload.step_data) {
-          this.processStepData(payload.step_data);
-        }
-      } catch {
-      }
-    }
-  }
-
-  private processStepData(stepData: any): void {
-    if (!stepData) return;
-    
-    if (Array.isArray(stepData)) {
-      for (const step of stepData) {
-        if (step.messages) {
-          for (const msg of step.messages) {
-            this.processLightspeedMessage(msg, step.thread || {});
-          }
-        }
-        if (step.deltas) {
-          for (const delta of step.deltas) {
-            this.processDelta(delta);
-          }
-        }
-      }
-    }
-  }
-
-  private processLightspeedData(data: any): void {
-    if (!data) return;
-    
-    if (data.viewer?.message_threads?.nodes) {
-      for (const thread of data.viewer.message_threads.nodes) {
-        if (thread.messages?.nodes) {
-          for (const msg of thread.messages.nodes) {
-            this.processLightspeedMessage(msg, thread);
-          }
-        }
-        if (thread.all_participants?.nodes) {
-        }
-      }
-    }
-
-    if (data.message_threads?.nodes) {
-      for (const thread of data.message_threads.nodes) {
-        if (thread.messages?.nodes) {
-          for (const msg of thread.messages.nodes) {
-            this.processLightspeedMessage(msg, thread);
-          }
-        }
-      }
-    }
-
-    if (data.message_thread?.messages?.nodes) {
-      for (const msg of data.message_thread.messages.nodes) {
-        this.processLightspeedMessage(msg, data.message_thread);
-      }
-    }
-
-    if (data.messages && Array.isArray(data.messages)) {
-      for (const msg of data.messages) {
-        if (msg.class || msg.deltaClass || msg.type || msg.messageMetadata) {
-          this.processDelta(msg);
-        } else {
-          this.processLightspeedMessage(msg, { thread_key: msg.thread_key || {} });
-        }
-      }
-    }
-
     if (data.deltas && Array.isArray(data.deltas)) {
       for (const delta of data.deltas) {
         this.processDelta(delta);
       }
     }
-
-    if (data.threads && Array.isArray(data.threads)) {
-      for (const thread of data.threads) {
-        if (thread.messages?.nodes) {
-          for (const msg of thread.messages.nodes) {
-            this.processLightspeedMessage(msg, thread);
-          }
-        } else if (thread.messages && Array.isArray(thread.messages)) {
-          for (const msg of thread.messages) {
-            this.processLightspeedMessage(msg, thread);
-          }
-        }
-      }
+    if (data.event) {
+      this.processDelta(data);
     }
   }
 
-  private processLightspeedMessage(msg: any, thread: any): void {
-    if (!msg) return;
-    
-    let threadID = '';
-    let isGroup = false;
-    
-    if (thread?.thread_key?.thread_fbid) {
-      threadID = thread.thread_key.thread_fbid.toString();
-      isGroup = true;
-    } else if (thread?.thread_key?.other_user_id) {
-      threadID = thread.thread_key.other_user_id.toString();
-      isGroup = false;
-    } else if (thread?.id) {
-      threadID = thread.id.toString();
-      isGroup = threadID.length > 15;
-    } else if (thread?.threadId) {
-      threadID = thread.threadId.toString();
-      isGroup = threadID.length > 15;
-    }
-    
-    if (!threadID && msg.thread_id) {
-      threadID = msg.thread_id.toString();
-      isGroup = threadID.length > 15;
-    } else if (!threadID && msg.threadId) {
-      threadID = msg.threadId.toString();
-      isGroup = threadID.length > 15;
-    } else if (!threadID && msg.thread) {
-      threadID = (msg.thread.id || msg.thread.thread_id || '').toString();
-      isGroup = threadID.length > 15;
-    }
-    
-    const senderID = (
-      msg.message_sender?.id ||
-      msg.sender?.id ||
-      msg.sender_id ||
-      msg.senderId ||
-      msg.senderFbId ||
-      msg.actorFbId ||
-      msg.author?.split(':')[1] ||
-      msg.author ||
-      msg.from?.id ||
-      msg.user_id ||
-      ''
-    ).toString();
-    
-    const messageID = (
-      msg.message_id || 
-      msg.messageId ||
-      msg.id || 
-      msg.mid ||
-      ''
-    ).toString();
-    
-    const body = (
-      msg.message?.text || 
-      msg.snippet || 
-      msg.text || 
-      msg.body ||
-      msg.content ||
-      ''
-    ).toString();
-    
-    const timestamp = parseInt(msg.timestamp_precise || msg.timestamp || msg.created_time) || Date.now();
-
-    if (!threadID || !messageID) return;
-    if (!senderID && !body) return;
-    
-    if (this.messageIds.has(messageID)) return;
-    this.messageIds.add(messageID);
-    
-    if (!this.config.selfListen && senderID === this.userId) return;
-
-    const message: Message = {
-      messageID,
-      threadID,
-      senderID: senderID || 'unknown',
-      body,
-      timestamp,
-      type: this.determineMessageType(msg),
-      attachments: this.parseAttachments(msg.attachments || msg.blob_attachments || msg.message?.attachments || []),
-      mentions: this.parseMentions(msg.mentions || msg.message_tags || msg.message?.mentions || []),
-      isGroup,
-      isUnread: msg.isUnread ?? msg.unread ?? true
-    };
-
-    this.logger.info('Lightspeed mensahe natanggap', {
-      from: senderID,
-      thread: threadID,
-      isGroup
-    });
-
-    this.emit('message', message);
-  }
-
-  private handleGraphQLResponse(data: any): void {
-    if (data.data) {
-      this.processLightspeedData(data.data);
-    }
+  private handleOrcaNotifications(data: any): void {
     if (data.payload) {
       try {
         const payload = typeof data.payload === 'string' ? JSON.parse(data.payload) : data.payload;
-        this.processLightspeedData(payload);
-        if (payload.data) {
-          this.processLightspeedData(payload.data);
-        }
+        this.processDelta(payload);
       } catch {
       }
     }
-    if (data.deltas) {
-      for (const delta of data.deltas) {
-        this.processDelta(delta);
-      }
-    }
   }
 
-  private handleOrcaMessageNotifications(data: any): void {
-    if (data.deltas) {
-      for (const delta of data.deltas) {
-        this.processDelta(delta);
-      }
-    }
-    if (data.payload) {
-      this.processPayload(data.payload);
-    }
-    if (data.message || data.body !== undefined) {
-      this.handleNewMessage(data);
-    }
-    if (data.threads) {
-      for (const thread of data.threads) {
-        if (thread.messages) {
-          for (const msg of thread.messages) {
-            this.processDelta({ ...msg, threadId: thread.id || thread.threadId });
-          }
-        }
-      }
-    }
+  private handleThreadNameChange(delta: any): void {
+    const threadId = this.extractThreadId(delta);
+    const newName = delta.name || delta.thread_name || delta.title;
+    const actorId = delta.messageMetadata?.actorFbId || delta.actorFbId || delta.author;
+    
+    this.emit('thread_name', {
+      threadID: threadId,
+      name: newName,
+      actorID: actorId
+    });
   }
 
-  private handleForegroundState(data: any): void {
-    this.emit('foreground_state', data);
+  private handleParticipantAdded(delta: any): void {
+    const threadId = this.extractThreadId(delta);
+    const addedParticipants = delta.addedParticipants || delta.added_participants || [];
+    const actorId = delta.messageMetadata?.actorFbId || delta.actorFbId;
+    
+    this.emit('participant_added', {
+      threadID: threadId,
+      participants: addedParticipants.map((p: any) => p.userFbId || p.id),
+      actorID: actorId
+    });
+  }
+
+  private handleParticipantLeft(delta: any): void {
+    const threadId = this.extractThreadId(delta);
+    const leftParticipant = delta.leftParticipantFbId || delta.left_participant;
+    
+    this.emit('participant_left', {
+      threadID: threadId,
+      participantID: leftParticipant
+    });
+  }
+
+  private handleThreadAction(delta: any): void {
+    const threadId = this.extractThreadId(delta);
+    const actionType = delta.actionType || delta.action_type || delta.type;
+    
+    this.emit('thread_action', {
+      threadID: threadId,
+      type: actionType,
+      data: delta
+    });
+  }
+
+  private handleMessageReaction(delta: any): void {
+    const threadId = this.extractThreadId(delta);
+    const messageId = delta.messageId || delta.message_id;
+    const reaction = delta.reaction || delta.emoji;
+    const senderId = delta.senderId || delta.userId || delta.actor;
+    
+    this.emit('message_reaction', {
+      threadID: threadId,
+      messageID: messageId,
+      reaction: reaction,
+      senderID: senderId
+    });
+  }
+
+  private handleDisconnectNotify(data: any): void {
+    this.logger.warning('Received disconnect notification', { reason: data.reason });
+    if (data.reason === 'mqtt_over_limit' || data.reason === 'connection_limit') {
+      setTimeout(() => this.forceReconnect(), 5000);
+    }
   }
 
   private handleRegionHint(data: any): void {
@@ -1525,90 +1190,22 @@ export class MqttClient extends EventEmitter {
     }
   }
 
-  private handleDisconnectNotify(data: any): void {
-    this.logger.warning('Disconnect notification received', data);
-    this.emit('disconnect_notify', data);
-    
-    if (data.reason === 'new_session' || data.reason === 'session_replaced') {
-      this.scheduleReconnect();
-    }
-  }
-
   private tryExtractMessage(data: any, topic: string): void {
     if (data.deltas && Array.isArray(data.deltas)) {
       for (const delta of data.deltas) {
         this.processDelta(delta);
       }
-      return;
     }
-    
-    if (data.delta) {
-      this.processDelta(data.delta);
-      return;
+    if (data.message || data.body || data.text) {
+      this.processMessageData(data);
     }
-
-    if (data.class || data.deltaClass || data.messageMetadata) {
-      this.handleNewMessage(data);
-      return;
-    }
-
-    if (data.message || data.body !== undefined || data.snippet) {
-      if (data.threadId || data.thread_id || data.threadKey || data.thread_fbid || data.thread) {
-        this.handleNewMessage(data);
-      } else {
-        this.processLightspeedMessage(data, {});
-      }
-      return;
-    }
-
-    if (data.viewer?.message_threads?.nodes || 
-        data.message_thread?.messages?.nodes ||
-        data.message_threads?.nodes) {
-      this.processLightspeedData(data);
-      return;
-    }
-
-    if (data.payload) {
-      this.processPayload(data.payload);
-    }
-
-    if (data.data) {
-      this.processLightspeedData(data.data);
-    }
-
-    if (data.threads && Array.isArray(data.threads)) {
-      for (const thread of data.threads) {
-        if (thread.messages) {
-          for (const msg of thread.messages) {
-            this.processDelta({ ...msg, threadId: thread.id || thread.threadId });
-          }
-        }
-      }
-    }
-  }
-
-  private convertMercuryToMessage(action: any): Message {
-    const threadID = action.thread_fbid || action.other_user_fbid || 
-                     action.thread_id || action.threadId || '';
-    const senderID = action.author?.split(':')[1] || action.author || 
-                     action.sender_id || action.senderId || '';
-    
-    return {
-      messageID: action.message_id || action.messageId || action.mid || '',
-      threadID: threadID.toString(),
-      senderID: senderID.toString(),
-      body: action.body || action.snippet || action.text || '',
-      timestamp: parseInt(action.timestamp || action.timestamp_precise) || Date.now(),
-      type: this.determineMessageType(action),
-      attachments: this.parseAttachments(action.attachments || []),
-      mentions: this.parseMentions(action.mentions || []),
-      isGroup: !!action.thread_fbid
-    };
   }
 
   disconnect(): void {
+    this.isConnected = false;
     this.stopPingInterval();
     this.stopSyncInterval();
+    this.stopPresenceInterval();
     
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -1618,9 +1215,13 @@ export class MqttClient extends EventEmitter {
     if (this.client) {
       this.client.end(true);
       this.client = null;
-      this.isConnected = false;
-      this.logger.info('MQTT disconnected');
     }
+    
+    this.logger.info('MQTT disconnected');
+  }
+
+  getConnectionStatus(): boolean {
+    return this.isConnected;
   }
 
   getReconnectAttempts(): number {
@@ -1631,62 +1232,43 @@ export class MqttClient extends EventEmitter {
     this.reconnectAttempts = 0;
   }
 
-  getConnectionStatus(): boolean {
-    return this.isConnected;
-  }
-
-  sendPresence(isOnline: boolean): void {
-    if (!this.client || !this.isConnected) return;
-
-    const payload = {
-      make_user_available_when_in_foreground: isOnline
-    };
-
-    this.client.publish('/foreground_state', JSON.stringify(payload), { qos: 0 });
-  }
-
-  sendTypingIndicator(threadID: string, isTyping: boolean): void {
-    if (!this.client || !this.isConnected) return;
-
-    const payload = {
-      thread: threadID,
-      state: isTyping ? 1 : 0,
-      to: threadID
-    };
-
-    this.client.publish('/typing', JSON.stringify(payload), { qos: 0 });
-    this.client.publish('/thread_typing', JSON.stringify(payload), { qos: 0 });
-  }
-
-  markAsDelivered(threadID: string, messageID: string): void {
-    if (!this.client || !this.isConnected) return;
-
-    const payload = {
-      threadID,
-      messageID,
-      action: 'delivered'
-    };
-
-    this.client.publish('/t_ms', JSON.stringify(payload), { qos: 0 });
-  }
-
-  markAsRead(threadID: string): void {
-    if (!this.client || !this.isConnected) return;
-
-    const payload = {
-      threadID,
-      action: 'mark_read',
-      timestamp: Date.now()
-    };
-
-    this.client.publish('/t_ms', JSON.stringify(payload), { qos: 0 });
-  }
-
   getLastMessageTimestamp(): number {
     return this.lastMessageTimestamp;
   }
 
   getProcessedMessageCount(): number {
     return this.messageIds.size;
+  }
+
+  markAsDelivered(threadID: string, messageID: string): void {
+    if (!this.client || !this.isConnected) return;
+
+    const payload = {
+      thread_id: threadID,
+      message_id: messageID,
+      action: 'delivery'
+    };
+
+    this.client.publish(
+      '/t_ms',
+      JSON.stringify({ type: 'delivery_receipt', ...payload }),
+      { qos: 0 }
+    );
+  }
+
+  markAsRead(threadID: string): void {
+    if (!this.client || !this.isConnected) return;
+
+    const payload = {
+      thread_id: threadID,
+      action: 'mark_read',
+      timestamp: Date.now()
+    };
+
+    this.client.publish(
+      '/t_ms',
+      JSON.stringify({ type: 'mark_read', ...payload }),
+      { qos: 0 }
+    );
   }
 }

@@ -5,6 +5,88 @@ Lahat ng notable changes sa project na ito ay dokumentado dito.
 Ang format ay based sa [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 at ang project na ito ay sumusunod sa [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.7] - 2025-12-12
+
+### 🎉 Complete Unofficial API Rebuild - Custom Bot Support
+
+Ang major update na ito ay nagdadala ng kompletong rebuild ng library para gamitin ang unofficial Facebook API patterns tulad ng iba pang FCA libraries (biar-fca, ws3-fca, etc). Hindi na gumagamit ng official GraphQL API para sa message sending.
+
+### ✨ Added
+
+- **Complete Unofficial API Implementation**
+  - Rebuilt HTTP client to use internal Facebook messaging endpoints
+  - Added `FB_SEND_MESSAGE_URL` (`/messaging/send/`) for proper message delivery
+  - Added `FB_SEND_MESSAGE_URL_ALT` (Messenger fallback) for redundancy
+  - Added proper form-data based message sending like traditional FCA libraries
+  - Added offline threading ID generation for message tracking
+  - Added proper message ID generation (`mid.$c...` format)
+  - Added ttstamp generation for request validation
+
+- **New HTTP Endpoints**
+  - `FB_TYPING_URL` - For typing indicators (`/ajax/messaging/typ.php`)
+  - `FB_READ_STATUS_URL` - For read receipts (`/ajax/mercury/change_read_status.php`)
+  - `FB_UNSEND_URL` - For message unsending (`/messaging/unsend_message/`)
+  - `FB_REACTION_URL` - For message reactions (`/ufi/reaction/`)
+  - `FB_ATTACHMENT_UPLOAD_URL` - For file uploads (`/ajax/mercury/upload.php`)
+
+- **Enhanced Message Sending**
+  - Added `sendMessage()` method in HTTP client with proper form encoding
+  - Added support for group threads (`thread_fbid`) and private threads (`other_user_fbid`)
+  - Added sticker support via `sticker_id` field
+  - Added mentions support via `profile_xmd` field
+  - Added reply support via `replied_to_message_id` field
+  - Added automatic fallback to Messenger endpoint on failure
+
+- **New Utility Methods**
+  - `sendTypingIndicator()` - Send typing status via HTTP
+  - `markAsRead()` - Mark thread as read via HTTP
+  - `unsendMessage()` - Unsend/delete message via HTTP
+  - `setMessageReaction()` - Add reaction to message via HTTP
+  - `uploadAttachment()` - Upload files and get attachment ID
+
+- **Improved MQTT Client**
+  - Enhanced connection stability with 7 fallback endpoints
+  - Increased max reconnect attempts to 150
+  - Added presence interval for keeping connection alive
+  - Better error handling for rate limits and connection limits
+  - Added `forceLogin` option for session refresh
+  - Removed GraphQL-based sync, using pure MQTT delta sync
+
+### 🔧 Fixed
+
+- **Message Sending Issues**
+  - Fixed bot not being able to send messages to group chats
+  - Fixed bot not being able to send messages to private conversations
+  - Fixed rate limit handling with proper error messages
+  - Fixed message ID format to match Facebook's internal format
+
+- **MQTT Connection**
+  - Fixed region hint handling for better connection routing
+  - Fixed disconnect notification handling with auto-reconnect
+  - Fixed sync token persistence between reconnections
+  - Fixed presence updates to keep session alive
+
+- **HTTP Client**
+  - Fixed request headers to match browser behavior
+  - Fixed cookie string formatting for authentication
+  - Fixed response parsing for `for (;;);` prefixed responses
+  - Added proper Origin and Referer headers
+
+### 🔧 Technical Improvements
+
+- Removed dependency on official GraphQL API for message sending
+- Implemented proper form-urlencoded request format
+- Added request counter for unique request IDs
+- Better separation between MQTT (receive) and HTTP (send) layers
+- Enhanced error handling with detailed error messages
+- Compatible with appstate from other FCA libraries (biar-fca, ws3-fca, etc.)
+
+### ⚠️ Breaking Changes
+
+- None - fully backward compatible with existing code
+
+---
+
 ## [0.6.6] - 2025-12-12
 
 ### 🎉 Major MQTT Rebuild - Full Support for Group Chat & Private Messages
