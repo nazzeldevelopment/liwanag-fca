@@ -84,6 +84,18 @@ liwanag.login({ appState: require('./appstate.json') }, {}, (err, api) => {
 
 ## Recent Changes
 
+### v0.6.5 (2025-12-12)
+- **Critical Lightspeed Fix**: Fixed Lightspeed messages not being emitted properly
+- **Enhanced processLightspeedMessage()**: Correctly extracts threadID from message-level properties
+- **Fixed processLightspeedData()**: Properly distinguishes between delta and Lightspeed formats
+- **Improved tryExtractMessage()**: Correctly routes messages to appropriate handlers
+
+### v0.6.4 (2025-12-12)
+- **Critical Bot Fix**: Fixed bot not responding to Group Chat and Private Messages
+- **New Topic Handlers**: Added `/graphql`, `/orca_message_notifications`, `/ls_foreground_state`
+- **Lightspeed Support**: Added processLightspeedData() and processLightspeedMessage()
+- **Enhanced Message Parsing**: Better extraction from multiple message formats
+
 ### v0.6.3 (2025-12-12)
 - **Critical MQTT Fix**: Fixed authentication - password now uses JSON-serialized session cookies
 - **Improved Message Handling**: Mercury and messaging_events handlers now properly emit messages
