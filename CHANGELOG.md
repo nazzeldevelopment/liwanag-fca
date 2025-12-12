@@ -5,6 +5,53 @@ Lahat ng notable changes sa project na ito ay dokumentado dito.
 Ang format ay based sa [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 at ang project na ito ay sumusunod sa [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.3] - 2025-12-12
+
+### 🔧 Fixed
+
+- **Full MQTT Listening Support for Group Chat and Private Messages**
+  - Fixed MQTT listener not receiving messages from Messenger Group Chats
+  - Fixed MQTT listener not receiving Private Messages
+  - Added multiple MQTT endpoint fallback support (`edge-chat.messenger.com`, `edge-chat.facebook.com`, `mqtt-mini.facebook.com`)
+  - Added automatic endpoint rotation on connection failure
+  - Improved message delta parsing for both group and private conversations
+
+### ✨ Added
+
+- **Enhanced MQTT Topics**
+  - Added new MQTT topic subscriptions: `/webrtc_response`, `/t_rtc`, `/ls_req`, `/ls_resp`, `/ls_foreground_state`, `/t_p`, `/graphql`, `/t_region_hint`, `/notify_disconnect_v2`
+  - Better coverage for all Messenger event types
+
+- **Improved Message Handling**
+  - Added support for `location` and `share` message types
+  - Added `isUnread` property to Message interface
+  - Added `replyToMessage` support for quoted replies
+  - Improved attachment parsing with width, height, and duration fields
+  - Better mention parsing from different message formats
+
+- **New MQTT Event Handlers**
+  - Added `handleMercuryEvent()` for Mercury-based message events
+  - Added `handleMessagingEvents()` for messaging_events topic
+  - Added `handleLightspeedResponse()` for Lightspeed protocol responses
+  - Added `handlePresenceTopic()` for /t_p presence updates
+  - Added `handleThreadNameChange()` for thread name updates
+  - Added `handleParticipantAdded()` and `handleParticipantLeft()` for group member changes
+  - Added `handleThreadAction()` for thread-level actions
+
+- **New MQTT Methods**
+  - Added `markAsDelivered(threadID, messageID)` - Mark message as delivered
+  - Added `markAsRead(threadID)` - Mark thread as read via MQTT
+
+### 🔧 Technical Improvements
+  - Improved sync request handling with dual queue initialization
+  - Better JSON parsing with fallback for malformed payloads
+  - Added connection timeout with automatic endpoint failover
+  - Improved delta class detection for different message formats
+  - Enhanced error handling for sync errors (ERROR_QUEUE_NOT_FOUND auto-retry)
+  - Better thread ID extraction from various message formats
+
+---
+
 ## [0.6.2] - 2025-12-12
 
 ### 🔧 Fixed

@@ -78,9 +78,15 @@ export interface Message {
   attachments: Attachment[];
   mentions: Mention[];
   isGroup: boolean;
+  isUnread?: boolean;
+  replyToMessage?: {
+    messageID: string;
+    senderID: string;
+    body: string;
+  };
 }
 
-export type MessageType = 'text' | 'sticker' | 'photo' | 'video' | 'audio' | 'file' | 'gif';
+export type MessageType = 'text' | 'sticker' | 'photo' | 'video' | 'audio' | 'file' | 'gif' | 'location' | 'share';
 
 export interface Attachment {
   type: string;
