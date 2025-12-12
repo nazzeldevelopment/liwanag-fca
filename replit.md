@@ -84,6 +84,13 @@ liwanag.login({ appState: require('./appstate.json') }, {}, (err, api) => {
 
 ## Recent Changes
 
+### v0.6.7 (2025-12-12)
+- **Form Handling Fix**: Added dedicated postForm method for proper form-urlencoded data
+- **Type Safety**: All form fields now typed as Record<string, string> to prevent undefined values
+- **Conditional Fields**: Form fields (specific_to_list, thread) only added when applicable
+- **Updated Methods**: sendMessage, sendTypingIndicator, markAsRead, unsendMessage, setMessageReaction all use postForm
+- **HTTP Client Improvement**: postForm filters out undefined/null values before submission
+
 ### v0.6.6 (2025-12-12)
 - **Major MQTT Rebuild**: Complete rebuild of MQTT client for Group Chat & Private Message support
 - **MQTT Protocol Fix**: Updated to MQTT 3.1.1 (protocolVersion 4) for Facebook compatibility
